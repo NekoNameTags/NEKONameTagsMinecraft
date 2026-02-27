@@ -300,9 +300,9 @@ try {
             Write-Host "Building Minecraft $mc ($($target.loader)) with task: $moduleTask"
 
             if ($isWindowsHost) {
-                & .\gradlew.bat --no-daemon :core:build $moduleTask @props
+                & .\gradlew.bat --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" @props
             } else {
-                & ./gradlew --no-daemon :core:build $moduleTask @props
+                & ./gradlew --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" @props
             }
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "Build failed for $mc [$($target.loader)] (continuing)." -ForegroundColor Red
