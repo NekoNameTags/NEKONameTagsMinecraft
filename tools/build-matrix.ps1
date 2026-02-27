@@ -256,45 +256,43 @@ try {
 
         foreach ($target in $buildTargets) {
             $props = @()
+            if (Test-UsableMatrixValue -Value $mc) {
+                $props += "-Pminecraft_version=$mc"
+            }
+            if (Test-UsableMatrixValue -Value $entry.paper_api_version) {
+                $props += "-Ppaper_api_version=$($entry.paper_api_version)"
+            }
+            if (Test-UsableMatrixValue -Value $entry.sponge_api_version) {
+                $props += "-Psponge_api_version=$($entry.sponge_api_version)"
+            }
+            if (Test-UsableMatrixValue -Value $entry.fabric_loader_version) {
+                $props += "-Pfabric_loader_version=$($entry.fabric_loader_version)"
+            }
+            if (Test-UsableMatrixValue -Value $entry.fabric_api_version) {
+                $props += "-Pfabric_api_version=$($entry.fabric_api_version)"
+            }
+            if (Test-UsableMatrixValue -Value $entry.yarn_mappings) {
+                $props += "-Pyarn_mappings=$($entry.yarn_mappings)"
+            }
+            if (Test-UsableMatrixValue -Value $entry.forge_version) {
+                $props += "-Pforge_version=$($entry.forge_version)"
+            }
+            if (Test-UsableMatrixValue -Value $entry.neoforge_version) {
+                $props += "-Pneoforge_version=$($entry.neoforge_version)"
+            }
+
             switch ($target.loader) {
                 "paper" {
-                    if (Test-UsableMatrixValue -Value $entry.paper_api_version) {
-                        $props += "-Ppaper_api_version=$($entry.paper_api_version)"
-                    }
                 }
                 "bukkit" {
-                    if (Test-UsableMatrixValue -Value $entry.paper_api_version) {
-                        $props += "-Ppaper_api_version=$($entry.paper_api_version)"
-                    }
                 }
                 "sponge" {
-                    if (Test-UsableMatrixValue -Value $entry.sponge_api_version) {
-                        $props += "-Psponge_api_version=$($entry.sponge_api_version)"
-                    }
                 }
                 "fabric" {
-                    $props += "-Pminecraft_version=$mc"
-                    if (Test-UsableMatrixValue -Value $entry.fabric_loader_version) {
-                        $props += "-Pfabric_loader_version=$($entry.fabric_loader_version)"
-                    }
-                    if (Test-UsableMatrixValue -Value $entry.fabric_api_version) {
-                        $props += "-Pfabric_api_version=$($entry.fabric_api_version)"
-                    }
-                    if (Test-UsableMatrixValue -Value $entry.yarn_mappings) {
-                        $props += "-Pyarn_mappings=$($entry.yarn_mappings)"
-                    }
                 }
                 "forge" {
-                    $props += "-Pminecraft_version=$mc"
-                    if (Test-UsableMatrixValue -Value $entry.forge_version) {
-                        $props += "-Pforge_version=$($entry.forge_version)"
-                    }
                 }
                 "neoforge" {
-                    $props += "-Pminecraft_version=$mc"
-                    if (Test-UsableMatrixValue -Value $entry.neoforge_version) {
-                        $props += "-Pneoforge_version=$($entry.neoforge_version)"
-                    }
                 }
             }
 
