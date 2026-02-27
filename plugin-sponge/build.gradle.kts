@@ -1,11 +1,10 @@
 plugins {
-    id("net.minecraftforge.gradle") version "6.0.43"
     `java`
 }
 
 dependencies {
-    minecraft("net.minecraftforge:forge:${property("forge_version")}")
     implementation(project(":core"))
+    compileOnly("org.spongepowered:spongeapi:${property("sponge_api_version")}")
 }
 
 java {
@@ -15,14 +14,10 @@ java {
     withSourcesJar()
 }
 
-minecraft {
-    mappings("official", property("minecraft_version").toString())
-    copyIdeResources.set(true)
-}
-
 tasks.processResources {
     inputs.property("version", project.version)
-    filesMatching("META-INF/mods.toml") {
+    filesMatching("META-INF/sponge_plugins.json") {
         expand("version" to project.version.toString())
     }
 }
+

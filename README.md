@@ -2,8 +2,10 @@
 
 Multi-loader NekoNameTags foundation for:
 - Forge mods
+- NeoForge mods
 - Fabric mods
 - Bukkit/Paper plugins
+- Sponge plugins
 
 This repository is structured so one shared core can be reused across loader-specific modules.
 
@@ -17,18 +19,38 @@ A single jar cannot realistically support every Minecraft version from `1.7.10` 
 This repo uses a practical strategy:
 - `core`: loader-agnostic logic (API fetch, models, tag text/color helpers)
 - `plugin-paper`: Bukkit/Paper implementation
+- `plugin-sponge`: Sponge implementation scaffold
 - `mod-fabric-1_21`: Fabric 1.21.x implementation scaffold
 - `mod-forge-1_21`: Forge 1.21.x implementation scaffold
+- `mod-neoforge-1_21`: NeoForge 1.21.x implementation scaffold
 - `versions/`: version profile metadata and orchestration notes
 
 ## Quick start
 
 1. Install JDK 21 for modern builds.
-2. Configure API URL in `gradle.properties` (`nekonametags_api_url`).
-3. Build target modules:
+2. Set version in one place: `gradle.properties` -> `mod_version=...`
+3. Configure API URL in `gradle.properties` (`nekonametags_api_url`).
+4. Build target modules:
    - `./gradlew :plugin-paper:build`
+   - `./gradlew :plugin-sponge:build`
    - `./gradlew :mod-fabric-1_21:build`
    - `./gradlew :mod-forge-1_21:build`
+   - `./gradlew :mod-neoforge-1_21:build`
+
+## GitHub release automation
+
+- GitHub Actions builds all modules on push/PR.
+- Pushing a tag like `v0.1.0` publishes a public GitHub Release with built jars.
+- Version comes from `mod_version` in `gradle.properties`; update that single value.
+
+## Minecraft 1.21.1 -> 1.21.11 matrix
+
+- Version list file: `versions/minecraft-1.21x-builds.json`
+- Build locally (all configured entries): `tools\build-1.21x.bat -Loader all`
+- Build one version: `tools\build-1.21x.bat -Loader all -MinecraftVersion 1.21.1`
+- Workflow: `.github/workflows/build-1.21x-matrix.yml` (manual dispatch, choose one OS: Windows or Linux)
+
+Note: fill loader coordinates in `versions/minecraft-1.21x-builds.json` for each MC patch (Forge/NeoForge/Fabric/Paper entries). Empty fields are reported and skipped.
 
 ## Legacy support plan (`1.7.10` and older bands)
 

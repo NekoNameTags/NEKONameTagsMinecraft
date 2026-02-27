@@ -4,12 +4,15 @@ plugins {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(8))
+        languageVersion.set(JavaLanguageVersion.of(21))
     }
     withSourcesJar()
 }
 
-dependencies {
-    api("com.google.code.gson:gson:2.11.0")
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(8)
 }
 
+dependencies {
+    api("com.google.code.gson:gson:2.10.1")
+}

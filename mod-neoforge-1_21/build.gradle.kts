@@ -1,10 +1,12 @@
 plugins {
-    id("net.minecraftforge.gradle") version "6.0.43"
-    `java`
+    id("net.neoforged.moddev") version "2.0.78"
+}
+
+neoForge {
+    version = property("neoforge_version").toString()
 }
 
 dependencies {
-    minecraft("net.minecraftforge:forge:${property("forge_version")}")
     implementation(project(":core"))
 }
 
@@ -15,14 +17,10 @@ java {
     withSourcesJar()
 }
 
-minecraft {
-    mappings("official", property("minecraft_version").toString())
-    copyIdeResources.set(true)
-}
-
 tasks.processResources {
     inputs.property("version", project.version)
-    filesMatching("META-INF/mods.toml") {
+    filesMatching("META-INF/neoforge.mods.toml") {
         expand("version" to project.version.toString())
     }
 }
+

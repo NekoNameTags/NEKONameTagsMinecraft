@@ -1,0 +1,114 @@
+{
+  "versions": [
+    {
+      "mc": "1.21.1",
+      "paper_api_version": "1.21.1-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "0.115.1+1.21.1",
+      "yarn_mappings": "1.21.1+build.3",
+      "forge_version": "1.21.1-52.0.16",
+      "neoforge_version": "21.1.172"
+    },
+    {
+      "mc": "1.21.2",
+      "paper_api_version": "",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.106.1+1.21.2",
+      "yarn_mappings": "1.21.2+build.1",
+      "forge_version": "",
+      "neoforge_version": "21.2.1-beta"
+    },
+    {
+      "mc": "1.21.3",
+      "paper_api_version": "1.21.3-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.114.1+1.21.3",
+      "yarn_mappings": "1.21.3+build.2",
+      "forge_version": "1.21.3-53.1.7",
+      "neoforge_version": "21.3.95"
+    },
+    {
+      "mc": "1.21.4",
+      "paper_api_version": "1.21.4-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.119.4+1.21.4",
+      "yarn_mappings": "1.21.4+build.8",
+      "forge_version": "1.21.4-54.1.13",
+      "neoforge_version": "21.4.156"
+    },
+    {
+      "mc": "1.21.5",
+      "paper_api_version": "1.21.5-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.128.2+1.21.5",
+      "yarn_mappings": "1.21.5+build.1",
+      "forge_version": "1.21.5-55.1.7",
+      "neoforge_version": "21.5.96"
+    },
+    {
+      "mc": "1.21.6",
+      "paper_api_version": "1.21.6-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.128.2+1.21.6",
+      "yarn_mappings": "1.21.6+build.1",
+      "forge_version": "1.21.6-56.0.9",
+      "neoforge_version": "21.6.20-beta"
+    },
+    {
+      "mc": "1.21.7",
+      "paper_api_version": "1.21.7-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.129.0+1.21.7",
+      "yarn_mappings": "1.21.7+build.8",
+      "forge_version": "1.21.7-57.0.3",
+      "neoforge_version": "21.7.25-beta"
+    },
+    {
+      "mc": "1.21.8",
+      "paper_api_version": "1.21.8-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.136.1+1.21.8",
+      "yarn_mappings": "1.21.8+build.1",
+      "forge_version": "1.21.8-58.1.14",
+      "neoforge_version": "21.8.52"
+    },
+    {
+      "mc": "1.21.9",
+      "paper_api_version": "1.21.9-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.134.1+1.21.9",
+      "yarn_mappings": "1.21.9+build.1",
+      "forge_version": "1.21.9-59.0.5",
+      "neoforge_version": "21.9.16-beta"
+    },
+    {
+      "mc": "1.21.10",
+      "paper_api_version": "1.21.10-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.138.4+1.21.10",
+      "yarn_mappings": "1.21.10+build.3",
+      "forge_version": "1.21.10-60.1.8",
+      "neoforge_version": "21.10.64"
+    },
+    {
+      "mc": "1.21.11",
+      "paper_api_version": "1.21.11-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.18.4",
+      "fabric_api_version": "0.141.3+1.21.11",
+      "yarn_mappings": "1.21.11+build.4",
+      "forge_version": "1.21.11-61.1.1",
+      "neoforge_version": "21.11.38-beta"
+    }
+  ]
+}

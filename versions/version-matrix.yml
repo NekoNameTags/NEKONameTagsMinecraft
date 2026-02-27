@@ -9,12 +9,16 @@ profiles:
     java: 21
     modules:
       - plugin-paper
+      - plugin-sponge
       - mod-fabric-1_21
       - mod-forge-1_21
+      - mod-neoforge-1_21
     loaders:
       - paper-1.21.x
+      - sponge-1.21.x
       - fabric-1.21.x
       - forge-1.21.x
+      - neoforge-1.21.x
 
   legacy_1_7_10:
     java: 8
@@ -55,4 +59,3 @@ profiles:
       - paper-1.17..1.20
       - fabric-1.17..1.20
       - forge-1.17..1.20
-
