@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "nekonametags",
+  "version": "${version}",
+  "name": "NekoNameTags",
+  "description": "NekoNameTags Fabric module",
+  "authors": [
+    "NekoSuneVR"
+  ],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "uk.co.nekosunevr.nekonametags.fabric.NekoNameTagsFabric"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "fabric-api": "*"
+  }
+}
+

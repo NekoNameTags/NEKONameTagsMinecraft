@@ -1,0 +1,14 @@
+name: NekoNameTags
+version: ${version}
+main: uk.co.nekosunevr.nekonametags.paper.NekoNameTagsPlugin
+api-version: "1.21"
+authors: [NekoSuneVR]
+commands:
+  nekonametags:
+    description: Reload NekoNameTags data
+    usage: /nekonametags reload
+    permission: nekonametags.admin
+permissions:
+  nekonametags.admin:
+    default: op
+
