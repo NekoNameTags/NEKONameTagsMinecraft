@@ -17,6 +17,10 @@ java {
     withSourcesJar()
 }
 
+tasks.jar {
+    archiveBaseName.set("NekoNameTags-Fabric")
+}
+
 tasks.processResources {
     inputs.property("version", project.version)
     filesMatching("fabric.mod.json") {

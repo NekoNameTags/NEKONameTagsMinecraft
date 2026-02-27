@@ -15,6 +15,10 @@ java {
     withSourcesJar()
 }
 
+tasks.jar {
+    archiveBaseName.set("NekoNameTags-Forge")
+}
+
 minecraft {
     mappings("official", property("minecraft_version").toString())
     copyIdeResources.set(true)

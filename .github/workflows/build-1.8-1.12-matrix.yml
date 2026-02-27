@@ -1,4 +1,4 @@
-name: Build 1.8-1.12 Matrix
+﻿name: Build 1.8-1.12 Matrix
 
 on:
   workflow_dispatch:
@@ -21,9 +21,8 @@ on:
           - forge
           - bukkit
       minecraft_version:
-        description: "Optional specific MC version (blank = all in matrix json)"
-        required: false
-        default: ""
+        description: "Minecraft version to build and publish"
+        required: true
         type: string
       release_tag:
         description: "Release tag (blank => v<minecraft_version>)"
@@ -71,13 +70,13 @@ jobs:
             Write-Error "minecraft_version is required to publish release assets."
           }
           $tagInput = "${{ inputs.release_tag }}".Trim()
+          $line = (Get-Content gradle.properties | Where-Object { $_ -match '^mod_version=' } | Select-Object -First 1)
+          $modVer = $line.Split('=')[1].Trim()
           if ([string]::IsNullOrWhiteSpace($tagInput)) {
-            $tag = "v$mc"
+            $tag = "v$modVer-mc$mc"
           } else {
             $tag = $tagInput
           }
-          $line = (Get-Content gradle.properties | Where-Object { $_ -match '^mod_version=' } | Select-Object -First 1)
-          $modVer = $line.Split('=')[1].Trim()
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "mod_version=$modVer" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
@@ -94,6 +93,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.rel.outputs.tag }}
-          name: NekoNameTags ${{ inputs.minecraft_version }} (${{ steps.rel.outputs.mod_version }})
+          name: NekoNameTags ${{ steps.rel.outputs.mod_version }} (MC ${{ inputs.minecraft_version }})
           files: dist/*.jar
           generate_release_notes: true
+
