@@ -1,6 +1,10 @@
+import org.gradle.api.tasks.SourceSetContainer
+
 plugins {
     id("net.neoforged.moddev") version "2.0.78"
 }
+
+val coreMainOutput = project(":core").extensions.getByType<SourceSetContainer>()["main"].output
 
 neoForge {
     version = property("neoforge_version").toString()
@@ -19,6 +23,10 @@ java {
 
 base {
     archivesName.set("NekoNameTags-NeoForge")
+}
+
+tasks.jar {
+    from(coreMainOutput)
 }
 
 tasks.processResources {

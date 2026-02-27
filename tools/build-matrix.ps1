@@ -287,11 +287,17 @@ try {
             }
 
             $moduleLibs = Join-Path $repoRoot "$($target.module)/build/libs"
-            $jarFiles = Get-ChildItem -Path $moduleLibs -Filter *.jar -ErrorAction SilentlyContinue |
+            $jarCandidates = Get-ChildItem -Path $moduleLibs -Filter *.jar -ErrorAction SilentlyContinue |
                 Where-Object {
                     $_.Name -notlike "*-sources.jar" -and
                     $_.Name -notlike "*-javadoc.jar"
                 }
+            $preferred = @($jarCandidates | Where-Object { $_.Name -like "NekoNameTags-*.jar" })
+            if ($preferred.Count -gt 0) {
+                $jarFiles = $preferred
+            } else {
+                $jarFiles = $jarCandidates
+            }
             foreach ($jar in $jarFiles) {
                 $base = [System.IO.Path]::GetFileNameWithoutExtension($jar.Name)
                 $ext = [System.IO.Path]::GetExtension($jar.Name)

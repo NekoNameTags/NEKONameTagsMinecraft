@@ -1,7 +1,11 @@
+import org.gradle.api.tasks.SourceSetContainer
+
 plugins {
     id("net.minecraftforge.gradle") version "6.0.43"
     `java`
 }
+
+val coreMainOutput = project(":core").extensions.getByType<SourceSetContainer>()["main"].output
 
 dependencies {
     minecraft("net.minecraftforge:forge:${property("forge_version")}")
@@ -17,6 +21,10 @@ java {
 
 base {
     archivesName.set("NekoNameTags-Forge")
+}
+
+tasks.jar {
+    from(coreMainOutput)
 }
 
 minecraft {

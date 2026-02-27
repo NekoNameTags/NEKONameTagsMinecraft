@@ -5,10 +5,9 @@ api-version: "1.21"
 authors: [NekoSuneVR]
 commands:
   nekonametags:
-    description: Reload NekoNameTags data
-    usage: /nekonametags reload
+    description: Manage NekoNameTags
+    usage: /nekonametags <reload|toggle>
     permission: nekonametags.admin
 permissions:
   nekonametags.admin:
     default: op
-

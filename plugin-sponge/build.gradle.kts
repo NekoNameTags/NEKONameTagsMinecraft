@@ -1,6 +1,10 @@
+import org.gradle.api.tasks.SourceSetContainer
+
 plugins {
     `java`
 }
+
+val coreMainOutput = project(":core").extensions.getByType<SourceSetContainer>()["main"].output
 
 dependencies {
     implementation(project(":core"))
@@ -14,6 +18,10 @@ java {
     withSourcesJar()
 }
 
+base {
+    archivesName.set("NekoNameTags-Sponge")
+}
+
 tasks.processResources {
     inputs.property("version", project.version)
     filesMatching("META-INF/sponge_plugins.json") {
@@ -21,3 +29,6 @@ tasks.processResources {
     }
 }
 
+tasks.jar {
+    from(coreMainOutput)
+}

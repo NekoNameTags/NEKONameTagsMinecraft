@@ -21,6 +21,18 @@ public final class NekoNameTagsForge {
         } catch (Exception ex) {
             LOGGER.warn("NekoNameTags (Forge) API reload failed: {}", ex.getMessage());
         }
+
+        if (isClientEnvironment()) {
+            NekoNameTagsForgeClient.start(repository, LOGGER);
+        }
+    }
+
+    private static boolean isClientEnvironment() {
+        try {
+            Class.forName("net.minecraft.client.Minecraft");
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 }
-

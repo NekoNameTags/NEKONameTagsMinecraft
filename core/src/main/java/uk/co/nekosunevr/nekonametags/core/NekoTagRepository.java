@@ -49,7 +49,12 @@ public final class NekoTagRepository {
             if (users != null) {
                 for (NekoTagUser user : users) {
                     if (user != null && user.getUserId() != null && !user.getUserId().trim().isEmpty()) {
-                        mapped.put(normalizeUserKey(user.getUserId()), user);
+                        String key = normalizeUserKey(user.getUserId());
+                        mapped.put(key, user);
+                        String compact = compactUuidKey(key);
+                        if (!compact.equals(key)) {
+                            mapped.put(compact, user);
+                        }
                     }
                 }
             }
@@ -68,7 +73,11 @@ public final class NekoTagRepository {
         }
 
         if (playerUuid != null && !playerUuid.trim().isEmpty()) {
-            NekoTagUser byUuid = users.get(normalizeUserKey(playerUuid));
+            String normalized = normalizeUserKey(playerUuid);
+            NekoTagUser byUuid = users.get(normalized);
+            if (byUuid == null) {
+                byUuid = users.get(compactUuidKey(normalized));
+            }
             if (byUuid != null) {
                 return byUuid;
             }
@@ -81,5 +90,9 @@ public final class NekoTagRepository {
 
     private static String normalizeUserKey(String value) {
         return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private static String compactUuidKey(String value) {
+        return value == null ? "" : value.replace("-", "");
     }
 }

@@ -1,11 +1,14 @@
 package uk.co.nekosunevr.nekonametags.core;
 
 public final class TagEffects {
+    private static final long RAINBOW_CYCLE_MS = 2200L;
+    private static final long ANIMATION_STEP_MS = 240L;
+
     private TagEffects() {
     }
 
     public static int rainbowRgb(long nowMs, int phaseOffset) {
-        float hue = ((nowMs % 4000L) / 4000.0f + ((phaseOffset % 1000) / 1000.0f)) % 1.0f;
+        float hue = ((nowMs % RAINBOW_CYCLE_MS) / (float) RAINBOW_CYCLE_MS + ((phaseOffset % 1000) / 1000.0f)) % 1.0f;
         return hsbToRgb(hue, 0.9f, 1.0f);
     }
 
@@ -14,16 +17,22 @@ public final class TagEffects {
             return "";
         }
         int len = text.length();
-        int window = Math.min(6, len);
-        int start = (int) ((nowMs / 120L) % len);
-        int end = Math.min(len, start + window);
-        if (start == 0 && end == len) {
+        if (len == 1) {
             return text;
         }
-        if (end > start) {
-            return text.substring(start, end);
+
+        int cycle = (len * 2) - 2;
+        int step = (int) ((nowMs / ANIMATION_STEP_MS) % cycle);
+        int count;
+        if (step < len) {
+            count = step + 1;
+        } else {
+            count = len - (step - len + 1);
         }
-        return text;
+        if (count < 1) {
+            count = 1;
+        }
+        return text.substring(0, Math.min(count, len));
     }
 
     private static int hsbToRgb(float hue, float saturation, float brightness) {

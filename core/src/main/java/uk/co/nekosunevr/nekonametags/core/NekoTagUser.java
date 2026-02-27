@@ -1,14 +1,29 @@
 package uk.co.nekosunevr.nekonametags.core;
 
+import com.google.gson.annotations.SerializedName;
+
 import java.util.Arrays;
 
 public final class NekoTagUser {
+    @SerializedName(value = "id", alternate = {"Id"})
     private int id;
+
+    @SerializedName(value = "UserId", alternate = {"userId"})
     private String userId;
+
+    @SerializedName(value = "NamePlatesText", alternate = {"namePlatesText"})
     private String[] namePlatesText;
+
+    @SerializedName(value = "BigPlatesText", alternate = {"bigPlatesText"})
     private String[] bigPlatesText;
+
+    @SerializedName(value = "Color", alternate = {"color"})
     private int[] color;
+
+    @SerializedName(value = "isLive", alternate = {"IsLive"})
     private boolean isLive;
+
+    @SerializedName(value = "platform", alternate = {"Platform"})
     private String platform;
 
     public int getId() {
@@ -45,4 +60,3 @@ public final class NekoTagUser {
         return platform;
     }
 }
-
