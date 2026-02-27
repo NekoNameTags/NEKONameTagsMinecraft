@@ -2,6 +2,8 @@ package uk.co.nekosunevr.nekonametags.fabric;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.client.option.Perspective;
+import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
@@ -29,6 +31,7 @@ final class NekoNameTagsFabricClient {
     private static volatile List<ParsedTagLine> selfLines = Collections.emptyList();
     private static volatile boolean updateCheckDone;
     private static NekoClientSettings settings;
+    private static final List<ArmorStandEntity> selfHolograms = new ArrayList<ArmorStandEntity>();
 
     private NekoNameTagsFabricClient() {
     }
@@ -39,7 +42,6 @@ final class NekoNameTagsFabricClient {
         }
         started = true;
         NekoNameTagsFabricKeys.register();
-        NekoNameTagsFabricSelfRender.register();
         settings = NekoClientSettings.loadDefault();
         enabled = settings.isEnabled();
 
@@ -133,12 +135,14 @@ final class NekoNameTagsFabricClient {
     }
 
     private static void applyTags(MinecraftClient mc, NekoTagRepository repository) {
-        if (mc.world == null) {
+        if (mc.world == null || mc.player == null) {
+            clearSelfHolograms();
             return;
         }
 
         selfLines = Collections.emptyList();
         long now = System.currentTimeMillis();
+        List<ParsedTagLine> localLines = Collections.emptyList();
         for (AbstractClientPlayerEntity player : mc.world.getPlayers()) {
             if (!enabled) {
                 player.setCustomNameVisible(false);
@@ -164,8 +168,15 @@ final class NekoNameTagsFabricClient {
             player.setCustomNameVisible(true);
             if (mc.player != null && player.getUuid().equals(mc.player.getUuid())) {
                 selfLines = lines;
+                localLines = lines;
             }
         }
+
+        if (!enabled || mc.options.getPerspective() == Perspective.FIRST_PERSON) {
+            clearSelfHolograms();
+            return;
+        }
+        updateSelfHolograms(mc, localLines, now);
     }
 
     private static Text buildVanillaNameText(List<ParsedTagLine> lines, long nowMs) {
@@ -250,5 +261,56 @@ final class NekoNameTagsFabricClient {
 
     static List<ParsedTagLine> getSelfLines() {
         return selfLines;
+    }
+
+    private static void updateSelfHolograms(MinecraftClient mc, List<ParsedTagLine> lines, long nowMs) {
+        if (mc.player == null || mc.world == null || lines == null || lines.isEmpty()) {
+            clearSelfHolograms();
+            return;
+        }
+
+        while (selfHolograms.size() < lines.size()) {
+            ArmorStandEntity stand = new ArmorStandEntity(mc.world, mc.player.getX(), mc.player.getY(), mc.player.getZ());
+            stand.setInvisible(true);
+            stand.setMarker(true);
+            stand.setNoGravity(true);
+            stand.setSilent(true);
+            stand.setCustomNameVisible(true);
+            mc.world.addEntity(stand);
+            selfHolograms.add(stand);
+        }
+        while (selfHolograms.size() > lines.size()) {
+            ArmorStandEntity removed = selfHolograms.remove(selfHolograms.size() - 1);
+            if (removed != null && removed.isAlive()) {
+                removed.discard();
+            }
+        }
+
+        double y = mc.player.getY() + mc.player.getHeight() + 0.9D;
+        for (int i = 0; i < lines.size(); i++) {
+            ParsedTagLine line = lines.get(i);
+            ArmorStandEntity stand = selfHolograms.get(i);
+            if (stand == null || !stand.isAlive()) {
+                continue;
+            }
+            if (i > 0) {
+                ParsedTagLine prev = lines.get(i - 1);
+                float prevRatio = Math.max(0.7f, Math.min(3.0f, prev.getSize() / 16.0f));
+                y -= (0.25D * prevRatio) + 0.05D;
+            }
+            stand.setPosition(mc.player.getX(), y, mc.player.getZ());
+            stand.setSmall(line.getSize() <= 16.0f);
+            stand.setCustomName(buildStyledLineText(line, nowMs));
+            stand.setCustomNameVisible(true);
+        }
+    }
+
+    private static void clearSelfHolograms() {
+        for (ArmorStandEntity stand : selfHolograms) {
+            if (stand != null && stand.isAlive()) {
+                stand.discard();
+            }
+        }
+        selfHolograms.clear();
     }
 }

@@ -38,8 +38,8 @@ public final class NekoNameTagsPlugin extends JavaPlugin implements Listener {
     private static final long RELOAD_INTERVAL_TICKS = 20L * 30L;
     private static final long DEFAULT_EFFECT_REFRESH_TICKS = 4L;
     private static final long IMMEDIATE_RELOAD_COOLDOWN_MS = 1500L;
-    private static final double BASE_OFFSET = 0.55D;
-    private static final double VANILLA_NAME_CLEARANCE = 0.35D;
+    private static final double BASE_OFFSET = 0.48D;
+    private static final double VANILLA_NAME_CLEARANCE = 0.27D;
     private static final String LEGACY_HIDE_TEAM_PREFIX = "nnt";
 
     private NekoTagRepository repository;

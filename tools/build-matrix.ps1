@@ -205,6 +205,7 @@ try {
     }
 
     $failedBuilds = @()
+    $attemptedBuilds = 0
 
     if (-not $isWindowsHost) {
         & chmod +x ./gradlew
@@ -255,6 +256,7 @@ try {
         }
 
         foreach ($target in $buildTargets) {
+            $attemptedBuilds++
             $props = @()
             if (Test-UsableMatrixValue -Value $mc) {
                 $props += "-Pminecraft_version=$mc"
@@ -304,6 +306,29 @@ try {
             } else {
                 & ./gradlew --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" @props
             }
+            if ($LASTEXITCODE -ne 0 -and $target.loader -eq "neoforge") {
+                Write-Host "NeoForge build failed, cleaning NeoForm caches and retrying once..." -ForegroundColor Yellow
+                $neoTmp = Join-Path $repoRoot "$($target.module)/build/tmp/createMinecraftArtifacts"
+                if (Test-Path $neoTmp) {
+                    Remove-Item -Recurse -Force $neoTmp -ErrorAction SilentlyContinue
+                }
+                $userHomePath = [System.Environment]::GetFolderPath("UserProfile")
+                if (-not $userHomePath -or [string]::IsNullOrWhiteSpace($userHomePath)) {
+                    $userHomePath = $env:HOME
+                }
+                if ($userHomePath -and -not [string]::IsNullOrWhiteSpace($userHomePath)) {
+                    $neoCache = Join-Path $userHomePath ".gradle/caches/neoformruntime"
+                    if (Test-Path $neoCache) {
+                        Remove-Item -Recurse -Force $neoCache -ErrorAction SilentlyContinue
+                    }
+                }
+
+                if ($isWindowsHost) {
+                    & .\gradlew.bat --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" @props
+                } else {
+                    & ./gradlew --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" @props
+                }
+            }
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "Build failed for $mc [$($target.loader)] (continuing)." -ForegroundColor Red
                 $failedBuilds += "${mc}:$($target.loader)"
@@ -341,6 +366,10 @@ try {
     Write-Host "Release files prepared: $count ($releaseOut)"
     if ($failedBuilds.Count -gt 0) {
         Write-Host "Failed builds: $($failedBuilds -join ', ')" -ForegroundColor Yellow
+    }
+    if ($count -eq 0 -and $attemptedBuilds -eq 0) {
+        Write-Host "No buildable loaders/modules found for this profile in the current repository. Skipping without error." -ForegroundColor Yellow
+        exit 0
     }
     if ($count -eq 0) {
         Write-Host "No successful builds produced jars." -ForegroundColor Red

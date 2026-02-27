@@ -1,9 +1,11 @@
 package uk.co.nekosunevr.nekonametags.neoforge;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.CameraType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import org.apache.logging.log4j.Logger;
 import uk.co.nekosunevr.nekonametags.core.NekoClientSettings;
 import uk.co.nekosunevr.nekonametags.core.NekoTagFormat;
@@ -27,6 +29,7 @@ final class NekoNameTagsNeoForgeClient {
     private static volatile List<ParsedTagLine> selfLines = Collections.emptyList();
     private static volatile boolean updateCheckDone;
     private static NekoClientSettings settings;
+    private static final List<ArmorStand> selfHolograms = new ArrayList<ArmorStand>();
 
     private NekoNameTagsNeoForgeClient() {
     }
@@ -129,12 +132,14 @@ final class NekoNameTagsNeoForgeClient {
     }
 
     private static void applyTags(Minecraft mc, NekoTagRepository repository) {
-        if (mc.level == null) {
+        if (mc.level == null || mc.player == null) {
+            clearSelfHolograms();
             return;
         }
 
         selfLines = Collections.emptyList();
         long now = System.currentTimeMillis();
+        List<ParsedTagLine> localLines = Collections.emptyList();
         for (Player player : mc.level.players()) {
             if (!enabled) {
                 player.setCustomNameVisible(false);
@@ -160,8 +165,15 @@ final class NekoNameTagsNeoForgeClient {
             player.setCustomNameVisible(true);
             if (mc.player != null && player.getUUID().equals(mc.player.getUUID())) {
                 selfLines = lines;
+                localLines = lines;
             }
         }
+
+        if (!enabled || mc.options.getCameraType() == CameraType.FIRST_PERSON) {
+            clearSelfHolograms();
+            return;
+        }
+        updateSelfHolograms(mc, localLines, now);
     }
 
     private static Component buildVanillaNameComponent(List<ParsedTagLine> lines, long nowMs) {
@@ -240,5 +252,54 @@ final class NekoNameTagsNeoForgeClient {
         int rgb = line.getColorRgb() & 0x00FFFFFF;
         return Component.literal(text)
             .withStyle(style -> style.withColor(rgb).withBold(line.isBold()).withItalic(line.isItalic()));
+    }
+
+    private static void updateSelfHolograms(Minecraft mc, List<ParsedTagLine> lines, long nowMs) {
+        if (mc.player == null || mc.level == null || lines == null || lines.isEmpty()) {
+            clearSelfHolograms();
+            return;
+        }
+
+        while (selfHolograms.size() < lines.size()) {
+            ArmorStand stand = new ArmorStand(mc.level, mc.player.getX(), mc.player.getY(), mc.player.getZ());
+            stand.setInvisible(true);
+            stand.setNoGravity(true);
+            stand.setSilent(true);
+            stand.setCustomNameVisible(true);
+            mc.level.addFreshEntity(stand);
+            selfHolograms.add(stand);
+        }
+        while (selfHolograms.size() > lines.size()) {
+            ArmorStand removed = selfHolograms.remove(selfHolograms.size() - 1);
+            if (removed != null && removed.isAlive()) {
+                removed.discard();
+            }
+        }
+
+        double y = mc.player.getY() + mc.player.getBbHeight() + 0.9D;
+        for (int i = 0; i < lines.size(); i++) {
+            ParsedTagLine line = lines.get(i);
+            ArmorStand stand = selfHolograms.get(i);
+            if (stand == null || !stand.isAlive()) {
+                continue;
+            }
+            if (i > 0) {
+                ParsedTagLine prev = lines.get(i - 1);
+                float prevRatio = Math.max(0.7f, Math.min(3.0f, prev.getSize() / 16.0f));
+                y -= (0.25D * prevRatio) + 0.05D;
+            }
+            stand.setPos(mc.player.getX(), y, mc.player.getZ());
+            stand.setCustomName(buildStyledLineComponent(line, nowMs));
+            stand.setCustomNameVisible(true);
+        }
+    }
+
+    private static void clearSelfHolograms() {
+        for (ArmorStand stand : selfHolograms) {
+            if (stand != null && stand.isAlive()) {
+                stand.discard();
+            }
+        }
+        selfHolograms.clear();
     }
 }
