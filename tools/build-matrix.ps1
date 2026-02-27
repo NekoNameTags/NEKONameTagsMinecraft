@@ -148,7 +148,7 @@ try {
                 continue
             }
 
-            $moduleTasks += ":$moduleName:build"
+            $moduleTasks += ":${moduleName}:build"
         }
 
         if ($moduleTasks.Count -eq 0) {
@@ -171,6 +171,7 @@ try {
         if ($isWindowsHost) {
             & .\gradlew.bat --no-daemon :core:build @moduleTasks @props
         } else {
+            & chmod +x ./gradlew
             & ./gradlew --no-daemon :core:build @moduleTasks @props
         }
         if ($LASTEXITCODE -ne 0) {
