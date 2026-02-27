@@ -26,6 +26,7 @@ import uk.co.nekosunevr.nekonametags.core.TagEffectType;
 import uk.co.nekosunevr.nekonametags.core.TagEffects;
 import uk.co.nekosunevr.nekonametags.core.NekoTagUser;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.nio.file.Path;
 
 public final class NekoNameTagsPlugin extends JavaPlugin implements Listener {
     private static final long RELOAD_INTERVAL_TICKS = 20L * 30L;
@@ -41,11 +43,16 @@ public final class NekoNameTagsPlugin extends JavaPlugin implements Listener {
     private static final double BASE_OFFSET = 0.48D;
     private static final double VANILLA_NAME_CLEARANCE = 0.27D;
     private static final String LEGACY_HIDE_TEAM_PREFIX = "nnt";
+    private static final long DEFAULT_CACHE_REFRESH_SECONDS = 300L;
 
     private NekoTagRepository repository;
     private volatile boolean enabled = true;
+    private volatile boolean debug = false;
     private final Map<UUID, List<ArmorStand>> activeHolograms = new HashMap<UUID, List<ArmorStand>>();
     private long effectRefreshTicks = DEFAULT_EFFECT_REFRESH_TICKS;
+    private long cacheRefreshSeconds = DEFAULT_CACHE_REFRESH_SECONDS;
+    private String apiUrl;
+    private String cacheFileName;
     private BukkitTask effectTask;
     private final AtomicBoolean reloadInProgress = new AtomicBoolean(false);
     private volatile long lastImmediateReloadAtMs = 0L;
@@ -53,12 +60,8 @@ public final class NekoNameTagsPlugin extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        String apiUrl = getConfig().getString("api-url", System.getProperty(
-            "nekonametags.api.url",
-            "https://nekont.nekosunevr.co.uk/api/minecraft/nametags"
-        ));
-        repository = new NekoTagRepository(apiUrl);
-        effectRefreshTicks = Math.max(1L, getConfig().getLong("refresh-ticks", DEFAULT_EFFECT_REFRESH_TICKS));
+        loadRuntimeConfig();
+        recreateRepository();
 
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getScheduler().runTaskAsynchronously(this, this::reloadAndApply);
@@ -83,7 +86,8 @@ public final class NekoNameTagsPlugin extends JavaPlugin implements Listener {
 
         if (args.length > 0 && "reload".equalsIgnoreCase(args[0])) {
             reloadConfig();
-            effectRefreshTicks = Math.max(1L, getConfig().getLong("refresh-ticks", DEFAULT_EFFECT_REFRESH_TICKS));
+            loadRuntimeConfig();
+            recreateRepository();
             startOrRestartEffectTask();
             getServer().getScheduler().runTaskAsynchronously(this, () -> {
                 reloadAndApply();
@@ -94,6 +98,8 @@ public final class NekoNameTagsPlugin extends JavaPlugin implements Listener {
 
         if (args.length > 0 && "toggle".equalsIgnoreCase(args[0])) {
             enabled = !enabled;
+            getConfig().set("enabled", enabled);
+            saveConfig();
             if (!enabled) {
                 clearAppliedTags();
             } else {
@@ -115,6 +121,29 @@ public final class NekoNameTagsPlugin extends JavaPlugin implements Listener {
         return true;
     }
 
+    private void loadRuntimeConfig() {
+        apiUrl = getConfig().getString("api-url", System.getProperty(
+            "nekonametags.api.url",
+            "https://nekont.nekosunevr.co.uk/api/minecraft/nametags"
+        ));
+        enabled = getConfig().getBoolean("enabled", true);
+        debug = getConfig().getBoolean("debug", false);
+        effectRefreshTicks = Math.max(1L, getConfig().getLong("refresh-ticks", DEFAULT_EFFECT_REFRESH_TICKS));
+        cacheRefreshSeconds = Math.max(30L, getConfig().getLong("cache-refresh-seconds", DEFAULT_CACHE_REFRESH_SECONDS));
+        cacheFileName = getConfig().getString("cache-file", "cache/nametags-cache.json");
+    }
+
+    private void recreateRepository() {
+        File base = getDataFolder();
+        Path cachePath = new File(base, cacheFileName).toPath();
+        long refreshMillis = cacheRefreshSeconds * 1000L;
+        repository = new NekoTagRepository(apiUrl, cachePath, refreshMillis, message -> {
+            if (debug) {
+                getLogger().info("[debug] " + message);
+            }
+        });
+    }
+
     private void reloadAndApply() {
         if (!enabled || repository == null) {
             return;
@@ -125,7 +154,9 @@ public final class NekoNameTagsPlugin extends JavaPlugin implements Listener {
 
         try {
             Map<String, NekoTagUser> users = repository.reload();
-            getLogger().info("Loaded " + users.size() + " NekoNameTags entries.");
+            if (debug) {
+                getLogger().info("[debug] Loaded " + users.size() + " NekoNameTags entries.");
+            }
         } catch (Exception ex) {
             getLogger().warning("Failed to reload tags: " + ex.getMessage());
             return;

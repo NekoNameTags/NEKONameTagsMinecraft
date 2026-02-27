@@ -25,16 +25,30 @@ import uk.co.nekosunevr.nekonametags.core.TagEffectType;
 import uk.co.nekosunevr.nekonametags.core.TagEffects;
 import uk.co.nekosunevr.nekonametags.core.NekoTagUser;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 
 @Plugin("nekonametags")
 public final class NekoNameTagsSponge {
+    private static final long DEFAULT_CACHE_REFRESH_SECONDS = 300L;
     private final PluginContainer pluginContainer;
     private final Logger logger;
     private NekoTagRepository repository;
     private volatile boolean enabled = true;
+    private volatile boolean debug = false;
+    private Path configFilePath;
+    private Properties configProps;
+    private String apiUrl;
+    private String cacheFileName;
+    private long cacheRefreshSeconds = DEFAULT_CACHE_REFRESH_SECONDS;
 
     @Inject
     public NekoNameTagsSponge(PluginContainer pluginContainer, Logger logger) {
@@ -44,11 +58,8 @@ public final class NekoNameTagsSponge {
 
     @Listener
     public void onStarted(StartedEngineEvent<?> event) {
-        String apiUrl = System.getProperty(
-            "nekonametags.api.url",
-            "https://nekont.nekosunevr.co.uk/api/minecraft/nametags"
-        );
-        repository = new NekoTagRepository(apiUrl);
+        loadOrCreateConfig();
+        recreateRepository();
         registerCommands();
         reloadAndApply();
         Sponge.server().scheduler().submit(Task.builder()
@@ -74,7 +85,9 @@ public final class NekoNameTagsSponge {
         }
         try {
             int count = repository.reload().size();
-            logger.info("NekoNameTags (Sponge) loaded {} entries.", count);
+            if (debug) {
+                logger.info("[debug] NekoNameTags (Sponge) loaded {} entries.", count);
+            }
             applyToOnlinePlayers();
         } catch (Exception ex) {
             logger.warn("NekoNameTags (Sponge) API reload failed: {}", ex.getMessage());
@@ -178,11 +191,15 @@ public final class NekoNameTagsSponge {
                 String value = context.one(action).orElse("reload").toLowerCase();
                 if ("toggle".equals(value)) {
                     enabled = !enabled;
+                    configProps.setProperty("enabled", Boolean.toString(enabled));
+                    saveConfig();
                     if (enabled) {
                         reloadAndApply();
                     }
                     return CommandResult.success();
                 }
+                loadOrCreateConfig();
+                recreateRepository();
                 reloadAndApply();
                 return CommandResult.success();
             })
@@ -192,5 +209,71 @@ public final class NekoNameTagsSponge {
             .registrar(Command.Parameterized.class)
             .orElseThrow(() -> new IllegalStateException("No parameterized command registrar available"))
             .register(pluginContainer, command, "nekonametags", "nnt");
+    }
+
+    private void loadOrCreateConfig() {
+        configFilePath = Paths.get("config", "NekoNameTags", "sponge.properties");
+        configProps = new Properties();
+
+        if (Files.exists(configFilePath)) {
+            try (InputStream in = Files.newInputStream(configFilePath)) {
+                configProps.load(in);
+            } catch (IOException ex) {
+                logger.warn("Failed to read Sponge config, using defaults: {}", ex.getMessage());
+            }
+        }
+
+        if (!configProps.containsKey("api-url")) {
+            configProps.setProperty("api-url", "https://nekont.nekosunevr.co.uk/api/minecraft/nametags");
+        }
+        if (!configProps.containsKey("enabled")) {
+            configProps.setProperty("enabled", "true");
+        }
+        if (!configProps.containsKey("debug")) {
+            configProps.setProperty("debug", "false");
+        }
+        if (!configProps.containsKey("cache-file")) {
+            configProps.setProperty("cache-file", "cache/nametags-cache.json");
+        }
+        if (!configProps.containsKey("cache-refresh-seconds")) {
+            configProps.setProperty("cache-refresh-seconds", Long.toString(DEFAULT_CACHE_REFRESH_SECONDS));
+        }
+
+        apiUrl = configProps.getProperty("api-url", "https://nekont.nekosunevr.co.uk/api/minecraft/nametags").trim();
+        enabled = Boolean.parseBoolean(configProps.getProperty("enabled", "true").trim());
+        debug = Boolean.parseBoolean(configProps.getProperty("debug", "false").trim());
+        cacheFileName = configProps.getProperty("cache-file", "cache/nametags-cache.json").trim();
+        try {
+            cacheRefreshSeconds = Math.max(30L, Long.parseLong(configProps.getProperty("cache-refresh-seconds", Long.toString(DEFAULT_CACHE_REFRESH_SECONDS)).trim()));
+        } catch (Exception ignored) {
+            cacheRefreshSeconds = DEFAULT_CACHE_REFRESH_SECONDS;
+            configProps.setProperty("cache-refresh-seconds", Long.toString(DEFAULT_CACHE_REFRESH_SECONDS));
+        }
+
+        saveConfig();
+    }
+
+    private void saveConfig() {
+        try {
+            Path parent = configFilePath.getParent();
+            if (parent != null && !Files.exists(parent)) {
+                Files.createDirectories(parent);
+            }
+            try (OutputStream out = Files.newOutputStream(configFilePath)) {
+                configProps.store(out, "NekoNameTags Sponge Config");
+            }
+        } catch (IOException ex) {
+            logger.warn("Failed to save Sponge config: {}", ex.getMessage());
+        }
+    }
+
+    private void recreateRepository() {
+        Path configDir = configFilePath.getParent() == null ? Paths.get(".") : configFilePath.getParent();
+        Path cachePath = configDir.resolve(cacheFileName).normalize();
+        repository = new NekoTagRepository(apiUrl, cachePath, cacheRefreshSeconds * 1000L, message -> {
+            if (debug) {
+                logger.info("[debug] {}", message);
+            }
+        });
     }
 }
