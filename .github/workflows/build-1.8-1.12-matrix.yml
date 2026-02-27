@@ -87,19 +87,25 @@ jobs:
           "scope_name=$scopeName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Collect Jars
+        id: collect
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $files = Get-ChildItem -Path build/matrix-release -Filter *.jar -ErrorAction SilentlyContinue
-          if (-not $files) { throw "No jars were produced." }
+          if (-not $files) {
+            Write-Host "No jars were produced. Skipping release publish for this run."
+            "has_files=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
           Copy-Item -Path $files.FullName -Destination dist -Force
           Get-ChildItem dist
+          "has_files=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Publish GitHub Release
+        if: steps.collect.outputs.has_files == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.rel.outputs.tag }}
           name: NekoNameTags ${{ steps.rel.outputs.mod_version }} (${{ steps.rel.outputs.scope_name }})
           files: dist/*.jar
           generate_release_notes: true
-
