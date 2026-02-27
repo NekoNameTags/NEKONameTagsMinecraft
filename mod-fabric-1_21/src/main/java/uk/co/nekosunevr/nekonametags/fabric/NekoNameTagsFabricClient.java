@@ -272,7 +272,6 @@ final class NekoNameTagsFabricClient {
         while (selfHolograms.size() < lines.size()) {
             ArmorStandEntity stand = new ArmorStandEntity(mc.world, mc.player.getX(), mc.player.getY(), mc.player.getZ());
             stand.setInvisible(true);
-            stand.setMarker(true);
             stand.setNoGravity(true);
             stand.setSilent(true);
             stand.setCustomNameVisible(true);
@@ -299,7 +298,6 @@ final class NekoNameTagsFabricClient {
                 y -= (0.25D * prevRatio) + 0.05D;
             }
             stand.setPosition(mc.player.getX(), y, mc.player.getZ());
-            stand.setSmall(line.getSize() <= 16.0f);
             stand.setCustomName(buildStyledLineText(line, nowMs));
             stand.setCustomNameVisible(true);
         }
