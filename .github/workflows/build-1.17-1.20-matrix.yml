@@ -1,4 +1,4 @@
-name: Build 1.17-1.20 Matrix
+﻿name: Build 1.17-1.20 Matrix
 
 on:
   workflow_dispatch:
@@ -113,3 +113,5 @@ jobs:
           name: NekoNameTags ${{ steps.rel.outputs.mod_version }} (${{ steps.rel.outputs.scope_name }})
           files: dist/*.jar
           generate_release_notes: true
+          overwrite_files: true
+
