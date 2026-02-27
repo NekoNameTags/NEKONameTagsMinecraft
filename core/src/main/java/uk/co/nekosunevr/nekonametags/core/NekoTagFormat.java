@@ -16,7 +16,7 @@ public final class NekoTagFormat {
             return "";
         }
         String[] lines = user.getNamePlatesText();
-        return lines.length == 0 ? "" : cleanMarkup(lines[0]);
+        return lines.length == 0 ? "" : parse(lines[0]).getText();
     }
 
     public static String cleanMarkup(String value) {
@@ -28,5 +28,18 @@ public final class NekoTagFormat {
             .replace("#animationtag#", "")
             .trim();
     }
-}
 
+    public static ParsedTagLine parse(String rawLine) {
+        if (rawLine == null) {
+            return new ParsedTagLine("", "", TagEffectType.NONE);
+        }
+
+        TagEffectType effectType = TagEffectType.NONE;
+        if (rawLine.contains("#rainbow#")) {
+            effectType = TagEffectType.RAINBOW;
+        } else if (rawLine.contains("#animationtag#")) {
+            effectType = TagEffectType.ANIMATED;
+        }
+        return new ParsedTagLine(rawLine, cleanMarkup(rawLine), effectType);
+    }
+}

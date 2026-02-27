@@ -32,3 +32,16 @@ build/
 .idea/
 *.iml
 .vscode/
+
+# Java build output
+out/
+bin/
+target/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar

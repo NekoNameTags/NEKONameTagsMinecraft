@@ -8,7 +8,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
 import uk.co.nekosunevr.nekonametags.core.NekoTagFormat;
+import uk.co.nekosunevr.nekonametags.core.ParsedTagLine;
 import uk.co.nekosunevr.nekonametags.core.NekoTagRepository;
+import uk.co.nekosunevr.nekonametags.core.TagEffectType;
 import uk.co.nekosunevr.nekonametags.core.NekoTagUser;
 
 import java.util.Map;
@@ -24,7 +26,7 @@ public final class NekoNameTagsPlugin extends JavaPlugin {
         saveDefaultConfig();
         String apiUrl = getConfig().getString("api-url", System.getProperty(
             "nekonametags.api.url",
-            "https://nekont.nekosunevr.co.uk/api/chilloutvr/nametags"
+            "https://nekont.nekosunevr.co.uk/api/minecraft/nametags"
         ));
         repository = new NekoTagRepository(apiUrl);
 
@@ -68,12 +70,11 @@ public final class NekoNameTagsPlugin extends JavaPlugin {
 
     private void applyToOnlinePlayers() {
         Scoreboard scoreboard = Bukkit.getScoreboardManager().getMainScoreboard();
-        Map<String, NekoTagUser> users = repository.getCached();
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
             String normalized = NekoTagFormat.normalizePlayerId(uuid);
-            NekoTagUser tagUser = users.get(normalized);
+            NekoTagUser tagUser = repository.findForPlayer(normalized, player.getName());
             if (tagUser == null) {
                 continue;
             }
@@ -92,6 +93,14 @@ public final class NekoNameTagsPlugin extends JavaPlugin {
             String line = NekoTagFormat.firstLine(tagUser);
             if (!line.isEmpty()) {
                 team.setPrefix(line.length() > 64 ? line.substring(0, 64) : line);
+            }
+
+            String[] lines = tagUser.getNamePlatesText();
+            if (lines.length > 0) {
+                ParsedTagLine parsed = NekoTagFormat.parse(lines[0]);
+                if (parsed.getEffectType() == TagEffectType.RAINBOW || parsed.getEffectType() == TagEffectType.ANIMATED) {
+                    getLogger().fine("Effect marker detected for " + player.getName() + ": " + parsed.getEffectType());
+                }
             }
         }
     }

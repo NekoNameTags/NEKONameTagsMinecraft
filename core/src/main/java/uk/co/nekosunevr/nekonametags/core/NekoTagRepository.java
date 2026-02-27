@@ -49,7 +49,7 @@ public final class NekoTagRepository {
             if (users != null) {
                 for (NekoTagUser user : users) {
                     if (user != null && user.getUserId() != null && !user.getUserId().trim().isEmpty()) {
-                        mapped.put(user.getUserId(), user);
+                        mapped.put(normalizeUserKey(user.getUserId()), user);
                     }
                 }
             }
@@ -60,5 +60,26 @@ public final class NekoTagRepository {
             connection.disconnect();
         }
     }
-}
 
+    public NekoTagUser findForPlayer(String playerUuid, String playerName) {
+        Map<String, NekoTagUser> users = cache.get();
+        if (users.isEmpty()) {
+            return null;
+        }
+
+        if (playerUuid != null && !playerUuid.trim().isEmpty()) {
+            NekoTagUser byUuid = users.get(normalizeUserKey(playerUuid));
+            if (byUuid != null) {
+                return byUuid;
+            }
+        }
+        if (playerName != null && !playerName.trim().isEmpty()) {
+            return users.get(normalizeUserKey(playerName));
+        }
+        return null;
+    }
+
+    private static String normalizeUserKey(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
+    }
+}

@@ -49,6 +49,20 @@ The shared model mirrors your CVR format:
 - `isLive`
 - `platform`
 
+For Minecraft API usage, `UserId` may be either:
+- player UUID (recommended), e.g. `6db9eac6-df98-4ca0-90e7-d7537bef69a9`
+- player name, e.g. `squeek1984`
+
+Effect markers supported in shared parsing:
+- `#rainbow#`
+- `#animationtag#`
+
+## Visibility behavior
+
+- Rich CVR-style effects require client mod rendering (Fabric/Forge client).
+- Server plugin can show fallback plain text prefixes for all players.
+- Players without the mod will not see animated/rainbow overlays.
+
 ## Next implementation steps
 
 1. Add per-version adapter modules using `versions/version-matrix.yml`.

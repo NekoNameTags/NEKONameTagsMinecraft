@@ -12,7 +12,7 @@ public final class NekoNameTagsForge {
     public NekoNameTagsForge() {
         String apiUrl = System.getProperty(
             "nekonametags.api.url",
-            "https://nekont.nekosunevr.co.uk/api/chilloutvr/nametags"
+            "https://nekont.nekosunevr.co.uk/api/minecraft/nametags"
         );
         NekoTagRepository repository = new NekoTagRepository(apiUrl);
         try {
