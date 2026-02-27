@@ -15,8 +15,8 @@ java {
     withSourcesJar()
 }
 
-tasks.jar {
-    archiveBaseName.set("NekoNameTags-Forge")
+base {
+    archivesName.set("NekoNameTags-Forge")
 }
 
 minecraft {

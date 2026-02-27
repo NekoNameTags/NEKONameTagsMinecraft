@@ -116,6 +116,73 @@ function Read-RequiredJavaFromMatrix {
     return $javaVersion
 }
 
+function Read-GradleDistributionUrlFromMatrix {
+    param(
+        [Parameter(Mandatory = $true)][string]$MatrixPath,
+        [Parameter(Mandatory = $true)][string]$ProfileName
+    )
+
+    if (-not (Test-Path $MatrixPath)) {
+        throw "version matrix not found: $MatrixPath"
+    }
+
+    $lines = Get-Content $MatrixPath
+    $profileStart = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match "^\s{2}$([regex]::Escape($ProfileName)):\s*$") {
+            $profileStart = $i
+            break
+        }
+    }
+    if ($profileStart -lt 0) {
+        throw "profile '$ProfileName' not found in $MatrixPath"
+    }
+
+    $gradleUrl = $null
+    for ($i = $profileStart + 1; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        if ($line -match "^\s{2}[A-Za-z0-9_]+:\s*$") {
+            break
+        }
+        if ($line -match '^\s{4}gradle_distribution_url:\s*"?(.*?)"?\s*$') {
+            $gradleUrl = [string]$Matches[1]
+            continue
+        }
+    }
+
+    if (-not $gradleUrl -or [string]::IsNullOrWhiteSpace($gradleUrl)) {
+        throw "profile '$ProfileName' has no gradle_distribution_url in $MatrixPath"
+    }
+    return $gradleUrl
+}
+
+function Set-GradleWrapperDistributionUrl {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$DistributionUrl
+    )
+
+    $wrapperPath = Join-Path $RepoRoot "gradle\wrapper\gradle-wrapper.properties"
+    if (-not (Test-Path $wrapperPath)) {
+        throw "gradle wrapper properties not found: $wrapperPath"
+    }
+
+    $raw = Get-Content $wrapperPath -Raw
+    $escaped = [regex]::Escape($DistributionUrl)
+    if ($raw -match "(?m)^distributionUrl=$escaped\s*$") {
+        return
+    }
+
+    if ($raw -match "(?m)^distributionUrl=.*$") {
+        $updated = [regex]::Replace($raw, "(?m)^distributionUrl=.*$", "distributionUrl=$DistributionUrl")
+    } else {
+        $updated = $raw.TrimEnd("`r", "`n") + "`r`ndistributionUrl=$DistributionUrl`r`n"
+    }
+
+    Set-Content -Path $wrapperPath -Value $updated -Encoding ASCII
+    Write-Host "Set Gradle wrapper distribution for '$Profile' to $DistributionUrl"
+}
+
 function Read-AllJavaVersionsFromMatrix {
     param([Parameter(Mandatory = $true)][string]$MatrixPath)
 
@@ -186,6 +253,7 @@ if (-not $modules) {
 }
 
 $requiredJava = [int](Read-RequiredJavaFromMatrix -MatrixPath $matrixPath -ProfileName $Profile)
+$requiredGradleDistribution = Read-GradleDistributionUrlFromMatrix -MatrixPath $matrixPath -ProfileName $Profile
 $allMatrixJavas = @(Read-AllJavaVersionsFromMatrix -MatrixPath $matrixPath)
 
 $installedVersions = @()
@@ -261,6 +329,7 @@ if (-not $javaHome) {
 
 $env:JAVA_HOME = $javaHome
 $env:Path = "$javaHome\bin;$env:Path"
+Set-GradleWrapperDistributionUrl -RepoRoot $repoRoot -DistributionUrl $requiredGradleDistribution
 
 if ($PrepareOnly) {
     Write-Host "Prepared JAVA_HOME for profile '$Profile': $javaHome"

@@ -54,6 +54,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Debug Loom Version
+        shell: pwsh
+        run: |
+          Get-Content mod-fabric-1_21/build.gradle.kts | Select-String -Pattern "fabric-loom"
+
       - name: Build 1.21x Matrix
         shell: pwsh
         run: |

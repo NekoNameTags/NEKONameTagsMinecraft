@@ -17,8 +17,8 @@ java {
     withSourcesJar()
 }
 
-tasks.jar {
-    archiveBaseName.set("NekoNameTags-NeoForge")
+base {
+    archivesName.set("NekoNameTags-NeoForge")
 }
 
 tasks.processResources {

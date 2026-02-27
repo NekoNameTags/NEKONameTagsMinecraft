@@ -16,9 +16,95 @@ param(
 $ErrorActionPreference = "Stop"
 $isWindowsHost = ($env:OS -eq "Windows_NT")
 
+function Test-UsableMatrixValue {
+    param([Parameter(Mandatory = $false)]$Value)
+
+    if ($null -eq $Value) {
+        return $false
+    }
+    $text = [string]$Value
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return $false
+    }
+    $normalized = $text.Trim().ToUpperInvariant()
+    if ($normalized -in @("UNSUPPORTED", "N/A", "NA", "NONE", "NULL")) {
+        return $false
+    }
+    return $true
+}
+
+function Read-GradleDistributionUrlFromMatrix {
+    param(
+        [Parameter(Mandatory = $true)][string]$MatrixPath,
+        [Parameter(Mandatory = $true)][string]$ProfileName
+    )
+
+    if (-not (Test-Path $MatrixPath)) {
+        throw "version matrix not found: $MatrixPath"
+    }
+
+    $lines = Get-Content $MatrixPath
+    $profileStart = -1
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match "^\s{2}$([regex]::Escape($ProfileName)):\s*$") {
+            $profileStart = $i
+            break
+        }
+    }
+    if ($profileStart -lt 0) {
+        throw "profile '$ProfileName' not found in $MatrixPath"
+    }
+
+    $gradleUrl = $null
+    for ($i = $profileStart + 1; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        if ($line -match "^\s{2}[A-Za-z0-9_]+:\s*$") {
+            break
+        }
+        if ($line -match '^\s{4}gradle_distribution_url:\s*"?(.*?)"?\s*$') {
+            $gradleUrl = [string]$Matches[1]
+            continue
+        }
+    }
+
+    if (-not $gradleUrl -or [string]::IsNullOrWhiteSpace($gradleUrl)) {
+        throw "profile '$ProfileName' has no gradle_distribution_url in $MatrixPath"
+    }
+    return $gradleUrl
+}
+
+function Set-GradleWrapperDistributionUrl {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$DistributionUrl,
+        [Parameter(Mandatory = $true)][string]$ProfileName
+    )
+
+    $wrapperPath = Join-Path $RepoRoot "gradle/wrapper/gradle-wrapper.properties"
+    if (-not (Test-Path $wrapperPath)) {
+        throw "gradle wrapper properties not found: $wrapperPath"
+    }
+
+    $raw = Get-Content $wrapperPath -Raw
+    $escaped = [regex]::Escape($DistributionUrl)
+    if ($raw -match "(?m)^distributionUrl=$escaped\s*$") {
+        return
+    }
+
+    if ($raw -match "(?m)^distributionUrl=.*$") {
+        $updated = [regex]::Replace($raw, "(?m)^distributionUrl=.*$", "distributionUrl=$DistributionUrl")
+    } else {
+        $updated = $raw.TrimEnd("`r", "`n") + "`r`ndistributionUrl=$DistributionUrl`r`n"
+    }
+
+    Set-Content -Path $wrapperPath -Value $updated -Encoding ASCII
+    Write-Host "Set Gradle wrapper distribution for '$ProfileName' to $DistributionUrl"
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $matrixPath = Join-Path $repoRoot $MatrixFile
-$releaseOut = Join-Path $repoRoot "build\matrix-release"
+$releaseOut = Join-Path $repoRoot "build/matrix-release"
+$profileMatrixPath = Join-Path $repoRoot "versions/version-matrix.yml"
 
 if (-not (Test-Path $matrixPath)) {
     Write-Host "Missing matrix file: $matrixPath" -ForegroundColor Red
@@ -46,6 +132,9 @@ try {
             exit 1
         }
     }
+
+    $requiredGradleDistribution = Read-GradleDistributionUrlFromMatrix -MatrixPath $profileMatrixPath -ProfileName $Profile
+    Set-GradleWrapperDistributionUrl -RepoRoot $repoRoot -DistributionUrl $requiredGradleDistribution -ProfileName $Profile
 
     $data = Get-Content $matrixPath -Raw | ConvertFrom-Json
     $versions = @($data.versions)
@@ -117,6 +206,10 @@ try {
 
     $failedBuilds = @()
 
+    if (-not $isWindowsHost) {
+        & chmod +x ./gradlew
+    }
+
     foreach ($entry in $versions) {
         $mc = $entry.mc
         $candidateLoaders = @()
@@ -126,7 +219,7 @@ try {
             $candidateLoaders = @($Loader)
         }
 
-        $moduleTasks = @()
+        $buildTargets = @()
         foreach ($l in $candidateLoaders) {
             $moduleName = $moduleByLoader[$l]
             if (-not $moduleName -or [string]::IsNullOrWhiteSpace([string]$moduleName)) {
@@ -141,7 +234,7 @@ try {
             $missingFields = @()
             foreach ($field in $requiredFieldsByLoader[$l]) {
                 $value = $entry.$field
-                if (-not $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
+                if (-not (Test-UsableMatrixValue -Value $value)) {
                     $missingFields += "$l.$field"
                 }
             }
@@ -150,15 +243,17 @@ try {
                 continue
             }
 
-            $moduleTasks += ":${moduleName}:build"
+            $buildTargets += [pscustomobject]@{
+                loader = $l
+                module = $moduleName
+            }
         }
 
-        if ($moduleTasks.Count -eq 0) {
+        if ($buildTargets.Count -eq 0) {
             Write-Host "Skipping ${mc}: no buildable loaders for current repo/matrix." -ForegroundColor Yellow
             continue
         }
 
-        Write-Host "Building Minecraft $mc ($Loader) with tasks: $($moduleTasks -join ' ')"
         $props = @("-Pminecraft_version=$mc")
         $optionalProps = @{
             paper_api_version = $entry.paper_api_version
@@ -171,41 +266,51 @@ try {
         }
         foreach ($k in $optionalProps.Keys) {
             $v = [string]$optionalProps[$k]
-            if (-not [string]::IsNullOrWhiteSpace($v)) {
+            if (Test-UsableMatrixValue -Value $v) {
                 $props += "-P$k=$v"
             }
         }
 
-        if ($isWindowsHost) {
-            & .\gradlew.bat --no-daemon :core:build @moduleTasks @props
-        } else {
-            & chmod +x ./gradlew
-            & ./gradlew --no-daemon :core:build @moduleTasks @props
-        }
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Build failed for $mc (continuing)." -ForegroundColor Red
-            $failedBuilds += $mc
-            continue
-        }
+        foreach ($target in $buildTargets) {
+            $moduleTask = ":$($target.module):build"
+            Write-Host "Building Minecraft $mc ($($target.loader)) with task: $moduleTask"
 
-        $jarFiles = Get-ChildItem -Recurse -Path . -Filter *.jar |
-            Where-Object {
-                $_.FullName -like "*\build\libs\*" -and
-                $_.Name -notlike "*-sources.jar" -and
-                $_.Name -notlike "*-javadoc.jar"
+            if ($isWindowsHost) {
+                & .\gradlew.bat --no-daemon :core:build $moduleTask @props
+            } else {
+                & ./gradlew --no-daemon :core:build $moduleTask @props
             }
-        foreach ($jar in $jarFiles) {
-            $base = [System.IO.Path]::GetFileNameWithoutExtension($jar.Name)
-            $ext = [System.IO.Path]::GetExtension($jar.Name)
-            $outName = "$base-mc$mc$ext"
-            Copy-Item $jar.FullName -Destination (Join-Path $releaseOut $outName) -Force
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "Build failed for $mc [$($target.loader)] (continuing)." -ForegroundColor Red
+                $failedBuilds += "${mc}:$($target.loader)"
+                continue
+            }
+
+            $moduleLibs = Join-Path $repoRoot "$($target.module)/build/libs"
+            $jarFiles = Get-ChildItem -Path $moduleLibs -Filter *.jar -ErrorAction SilentlyContinue |
+                Where-Object {
+                    $_.Name -notlike "*-sources.jar" -and
+                    $_.Name -notlike "*-javadoc.jar"
+                }
+            foreach ($jar in $jarFiles) {
+                $base = [System.IO.Path]::GetFileNameWithoutExtension($jar.Name)
+                $ext = [System.IO.Path]::GetExtension($jar.Name)
+                if ($base -notmatch "(^|[-_])mc$([regex]::Escape($mc))($|[-_])") {
+                    $base = "$base-mc$mc"
+                }
+                if ($base -notmatch "(^|[-_])$([regex]::Escape($target.loader))($|[-_])") {
+                    $base = "$base-$($target.loader)"
+                }
+                $outName = "$base$ext"
+                Copy-Item $jar.FullName -Destination (Join-Path $releaseOut $outName) -Force
+            }
         }
     }
 
     $count = @(Get-ChildItem $releaseOut -Filter *.jar -ErrorAction SilentlyContinue).Count
     Write-Host "Release files prepared: $count ($releaseOut)"
     if ($failedBuilds.Count -gt 0) {
-        Write-Host "Failed versions: $($failedBuilds -join ', ')" -ForegroundColor Yellow
+        Write-Host "Failed builds: $($failedBuilds -join ', ')" -ForegroundColor Yellow
     }
     if ($count -eq 0) {
         Write-Host "No successful builds produced jars." -ForegroundColor Red
