@@ -75,7 +75,6 @@ final class NekoNameTagsForgeClient {
                 updateCheckDone = true;
                 checkForUpdatesAndNotify(logger);
             }
-
             Minecraft mc = Minecraft.getInstance();
             mc.execute(() -> applyTags(mc, repository));
 

@@ -79,7 +79,6 @@ final class NekoNameTagsFabricClient {
                 updateCheckDone = true;
                 checkForUpdatesAndNotify(logger);
             }
-
             MinecraftClient mc = MinecraftClient.getInstance();
             mc.execute(() -> applyTags(mc, repository));
 

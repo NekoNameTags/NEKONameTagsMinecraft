@@ -7,6 +7,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -17,6 +18,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public final class NekoTagRepository {
     private static final Type USER_LIST_TYPE = new TypeToken<List<NekoTagUser>>() {}.getType();
+    private static final String ALLOWED_SCHEME = "https";
+    private static final String ALLOWED_HOST = "nekont.nekosunevr.co.uk";
+    private static final String ALLOWED_PATH = "/api/minecraft/nametags";
 
     private final Gson gson = new Gson();
     private final String apiUrl;
@@ -31,7 +35,9 @@ public final class NekoTagRepository {
     }
 
     public Map<String, NekoTagUser> reload() throws Exception {
+        validateApiEndpoint();
         HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
+        connection.setInstanceFollowRedirects(false);
         connection.setRequestMethod("GET");
         connection.setConnectTimeout(7000);
         connection.setReadTimeout(7000);
@@ -94,5 +100,22 @@ public final class NekoTagRepository {
 
     private static String compactUuidKey(String value) {
         return value == null ? "" : value.replace("-", "");
+    }
+
+    private void validateApiEndpoint() {
+        URI uri = URI.create(apiUrl);
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
+        String path = uri.getPath() == null ? "" : uri.getPath();
+
+        if (!ALLOWED_SCHEME.equals(scheme)) {
+            throw new IllegalStateException("Blocked API URL: only HTTPS is allowed.");
+        }
+        if (!ALLOWED_HOST.equals(host)) {
+            throw new IllegalStateException("Blocked API URL host: " + host);
+        }
+        if (!ALLOWED_PATH.equals(path)) {
+            throw new IllegalStateException("Blocked API URL path: " + path);
+        }
     }
 }

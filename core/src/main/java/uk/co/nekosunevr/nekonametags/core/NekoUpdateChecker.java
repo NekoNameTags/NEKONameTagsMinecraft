@@ -5,66 +5,94 @@ import com.google.gson.Gson;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 public final class NekoUpdateChecker {
-    private static final String LATEST_RELEASE_API = "https://api.github.com/repos/NekoNameTags/NEKONameTagsMinecraft/releases/latest";
+    private static final String RELEASE_REPO = "NekoNameTags/NEKONameTagsMinecraft";
+    private static final String LATEST_RELEASE_API = "https://api.github.com/repos/" + RELEASE_REPO + "/releases/latest";
+    private static final String ALLOWED_SCHEME = "https";
+    private static final String ALLOWED_HOST = "api.github.com";
+    private static final String ALLOWED_PATH = "/repos/" + RELEASE_REPO + "/releases/latest";
 
     private NekoUpdateChecker() {
     }
 
     public static UpdateResult checkForUpdate(String currentVersion) {
-        if (currentVersion == null || currentVersion.trim().isEmpty()) {
-            return UpdateResult.noUpdate();
+        if (!isUpdateCheckEnabled()) {
+            return UpdateResult.noUpdate(currentVersion);
         }
 
         try {
+            validateEndpoint(LATEST_RELEASE_API);
             HttpURLConnection connection = (HttpURLConnection) new URL(LATEST_RELEASE_API).openConnection();
+            connection.setInstanceFollowRedirects(false);
             connection.setRequestMethod("GET");
-            connection.setConnectTimeout(7000);
-            connection.setReadTimeout(7000);
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
             connection.setRequestProperty("Accept", "application/vnd.github+json");
-            connection.setRequestProperty("User-Agent", "NekoNameTags-Updater");
+            connection.setRequestProperty("User-Agent", "NekoNameTags-VersionChecker");
 
             int status = connection.getResponseCode();
             if (status < 200 || status >= 300) {
-                return UpdateResult.noUpdate();
+                return UpdateResult.noUpdate(currentVersion);
             }
 
             try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
                 GithubRelease release = new Gson().fromJson(reader, GithubRelease.class);
                 if (release == null || release.tag_name == null || release.tag_name.trim().isEmpty()) {
-                    return UpdateResult.noUpdate();
+                    return UpdateResult.noUpdate(currentVersion);
                 }
 
                 String latest = release.tag_name.trim();
-                if (!isNewer(latest, currentVersion)) {
-                    return UpdateResult.noUpdate();
-                }
-
-                String url = release.html_url == null ? "" : release.html_url.trim();
-                return new UpdateResult(true, currentVersion, latest, url);
+                boolean updateAvailable = isLatestNewer(currentVersion, latest);
+                String releaseUrl = "https://github.com/" + RELEASE_REPO + "/releases/latest";
+                return new UpdateResult(updateAvailable, sanitizeVersion(currentVersion), latest, releaseUrl);
             } finally {
                 connection.disconnect();
             }
         } catch (Exception ignored) {
-            return UpdateResult.noUpdate();
+            return UpdateResult.noUpdate(currentVersion);
         }
     }
 
-    private static boolean isNewer(String latestRaw, String currentRaw) {
-        VersionParts latest = parseVersion(latestRaw);
-        VersionParts current = parseVersion(currentRaw);
+    private static boolean isUpdateCheckEnabled() {
+        return Boolean.parseBoolean(System.getProperty("nekonametags.update.check", "false"));
+    }
 
-        int max = Math.max(latest.numbers.size(), current.numbers.size());
-        for (int i = 0; i < max; i++) {
-            int l = i < latest.numbers.size() ? latest.numbers.get(i) : 0;
-            int c = i < current.numbers.size() ? current.numbers.get(i) : 0;
+    private static void validateEndpoint(String url) {
+        URI uri = URI.create(url);
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
+        String path = uri.getPath() == null ? "" : uri.getPath();
+
+        if (!ALLOWED_SCHEME.equals(scheme)) {
+            throw new IllegalStateException("Blocked update URL scheme");
+        }
+        if (!ALLOWED_HOST.equals(host)) {
+            throw new IllegalStateException("Blocked update URL host");
+        }
+        if (!ALLOWED_PATH.equals(path)) {
+            throw new IllegalStateException("Blocked update URL path");
+        }
+    }
+
+    private static String sanitizeVersion(String version) {
+        return version == null ? "" : version.trim();
+    }
+
+    private static boolean isLatestNewer(String current, String latest) {
+        VersionParts currentParts = parseVersion(current);
+        VersionParts latestParts = parseVersion(latest);
+
+        int maxLen = Math.max(currentParts.numbers.size(), latestParts.numbers.size());
+        for (int i = 0; i < maxLen; i++) {
+            int c = i < currentParts.numbers.size() ? currentParts.numbers.get(i) : 0;
+            int l = i < latestParts.numbers.size() ? latestParts.numbers.get(i) : 0;
             if (l > c) {
                 return true;
             }
@@ -72,19 +100,19 @@ public final class NekoUpdateChecker {
                 return false;
             }
         }
-
-        if (current.preRelease && !latest.preRelease) {
+        if (currentParts.preRelease && !latestParts.preRelease) {
             return true;
         }
         return false;
     }
 
     private static VersionParts parseVersion(String raw) {
-        String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-        if (normalized.startsWith("v")) {
-            normalized = normalized.substring(1);
-        }
-        String[] tokens = normalized.split("[^a-z0-9]+");
+        String normalized = raw == null ? "" : raw.trim().toLowerCase();
+        normalized = normalized.replace("snapshot", "-snapshot");
+        normalized = normalized.replace("pre", "-pre");
+        normalized = normalized.replace("rc", "-rc");
+        String cleaned = normalized.replaceAll("[^0-9a-z.\\-]", "");
+        String[] tokens = cleaned.split("[\\.\\-]+");
         List<Integer> numbers = new ArrayList<Integer>();
         boolean preRelease = false;
         for (String token : tokens) {
@@ -92,14 +120,8 @@ public final class NekoUpdateChecker {
                 continue;
             }
             if (token.matches("\\d+")) {
-                try {
-                    numbers.add(Integer.parseInt(token));
-                } catch (NumberFormatException ignored) {
-                    numbers.add(0);
-                }
-                continue;
-            }
-            if (token.contains("snapshot") || token.contains("alpha") || token.contains("beta") || token.contains("rc") || token.contains("pre")) {
+                numbers.add(Integer.parseInt(token));
+            } else {
                 preRelease = true;
             }
         }
@@ -119,8 +141,8 @@ public final class NekoUpdateChecker {
             this.releaseUrl = releaseUrl;
         }
 
-        public static UpdateResult noUpdate() {
-            return new UpdateResult(false, "", "", "");
+        public static UpdateResult noUpdate(String currentVersion) {
+            return new UpdateResult(false, sanitizeVersion(currentVersion), "", "");
         }
 
         public boolean isUpdateAvailable() {
@@ -152,6 +174,5 @@ public final class NekoUpdateChecker {
 
     private static final class GithubRelease {
         String tag_name;
-        String html_url;
     }
 }
