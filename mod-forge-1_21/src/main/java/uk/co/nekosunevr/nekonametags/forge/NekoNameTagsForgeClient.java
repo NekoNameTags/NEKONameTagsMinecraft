@@ -24,13 +24,15 @@ import java.util.UUID;
 
 final class NekoNameTagsForgeClient {
     private static final long RELOAD_INTERVAL_MS = 30_000L;
-    private static final double SELF_BASE_Y_OFFSET = 0.62D;
+    private static final double BASE_OFFSET = 0.48D;
+    private static final double VANILLA_NAME_CLEARANCE = 0.27D;
     private static final double SELF_LINE_GAP_BASE = 0.18D;
     private static final double SELF_LINE_GAP_EXTRA = 0.03D;
     private static volatile boolean started;
     private static volatile boolean enabled = true;
     private static volatile List<ParsedTagLine> selfLines = Collections.emptyList();
     private static volatile boolean updateCheckDone;
+    private static volatile boolean essentialInstalled;
     private static NekoClientSettings settings;
     private static final List<ArmorStand> selfHolograms = new ArrayList<ArmorStand>();
 
@@ -44,6 +46,7 @@ final class NekoNameTagsForgeClient {
         started = true;
         settings = NekoClientSettings.loadDefault();
         enabled = settings.isEnabled();
+        essentialInstalled = isEssentialInstalled();
 
         Thread worker = new Thread(() -> runLoop(repository, logger), "NekoNameTags-Forge-Client");
         worker.setDaemon(true);
@@ -135,7 +138,9 @@ final class NekoNameTagsForgeClient {
                 continue;
             }
 
-            List<ParsedTagLine> lines = buildParsedLines(user, player.getName().getString());
+            boolean isSelf = mc.player != null && player.getUUID().equals(mc.player.getUUID());
+            boolean includeNameLine = !(essentialInstalled && isSelf);
+            List<ParsedTagLine> lines = buildParsedLines(user, player.getName().getString(), includeNameLine);
             if (lines.isEmpty()) {
                 continue;
             }
@@ -147,7 +152,7 @@ final class NekoNameTagsForgeClient {
 
             player.setCustomName(rendered);
             player.setCustomNameVisible(true);
-            if (mc.player != null && player.getUUID().equals(mc.player.getUUID())) {
+            if (isSelf) {
                 selfLines = lines;
                 localLines = lines;
             }
@@ -177,7 +182,7 @@ final class NekoNameTagsForgeClient {
         return hasAny ? combined : null;
     }
 
-    private static List<ParsedTagLine> buildParsedLines(NekoTagUser user, String playerName) {
+    private static List<ParsedTagLine> buildParsedLines(NekoTagUser user, String playerName, boolean includeNameLine) {
         List<ParsedTagLine> lines = new ArrayList<ParsedTagLine>(8);
         String[] bigLines = user.getBigPlatesText();
         for (String raw : bigLines) {
@@ -199,11 +204,21 @@ final class NekoNameTagsForgeClient {
             return lines;
         }
 
-        String cleanName = playerName == null ? "" : playerName.trim();
-        if (!cleanName.isEmpty()) {
-            lines.add(new ParsedTagLine(cleanName, cleanName, TagEffectType.NONE, 0xFFFFFF, false, false, 16.0f));
+        if (includeNameLine) {
+            String cleanName = playerName == null ? "" : playerName.trim();
+            if (!cleanName.isEmpty()) {
+                lines.add(new ParsedTagLine(cleanName, cleanName, TagEffectType.NONE, 0xFFFFFF, false, false, 16.0f));
+            }
         }
         return lines;
+    }
+
+    private static boolean isEssentialInstalled() {
+        try {
+            return ModList.get().isLoaded("essential");
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     static boolean isEnabled() {
@@ -260,7 +275,7 @@ final class NekoNameTagsForgeClient {
             }
         }
 
-        double y = mc.player.getY() + mc.player.getBbHeight() + SELF_BASE_Y_OFFSET;
+        double y = mc.player.getY() + mc.player.getBbHeight() + BASE_OFFSET + VANILLA_NAME_CLEARANCE;
         for (int i = 0; i < lines.size(); i++) {
             ParsedTagLine line = lines.get(i);
             ArmorStand stand = selfHolograms.get(i);
