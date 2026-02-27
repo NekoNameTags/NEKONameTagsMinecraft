@@ -24,6 +24,7 @@ This repo uses a practical strategy:
 - `mod-fabric-1_21_11`: Fabric 1.21.10-1.21.11 implementation scaffold
 - `mod-forge-1_21`: Forge 1.21.x implementation scaffold
 - `mod-neoforge-1_21`: NeoForge 1.21.x implementation scaffold
+- `mod-labymod`: standalone LabyMod addon project (LabyMod 4 template based)
 - `versions/`: version profile metadata and orchestration notes
 
 ## Quick start
@@ -92,6 +93,19 @@ Local helpers:
 - `tools\build-1.8-1.12.bat`
 - `tools\build-1.13-1.16.bat`
 - `tools\build-1.17-1.20.bat`
+
+## LabyMod addon
+
+`mod-labymod` is a standalone Gradle project for a LabyMod addon.
+
+Configured Minecraft versions:
+- `1.8.9`, `1.12.2`, `1.16.5`
+- `1.17.1`, `1.18.2`, `1.19.4`
+- `1.20.1`, `1.20.6`
+- `1.21`, `1.21.1`, `1.21.3`, `1.21.4`, `1.21.5`, `1.21.8`, `1.21.10`, `1.21.11`
+
+Build command:
+- `tools\build-labymod.bat`
 
 ## Legacy support plan (`1.7.10` and older bands)
 

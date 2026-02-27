@@ -26,8 +26,8 @@ import java.util.UUID;
 
 final class NekoNameTagsFabricClient {
     private static final long RELOAD_INTERVAL_MS = 30_000L;
-    private static final double BASE_OFFSET = 0.48D;
-    private static final double VANILLA_NAME_CLEARANCE = 0.27D;
+    private static final double BASE_OFFSET = 0.18D;
+    private static final double VANILLA_NAME_CLEARANCE = 0.08D;
     private static final double SELF_LINE_GAP_BASE = 0.18D;
     private static final double SELF_LINE_GAP_EXTRA = 0.03D;
     private static volatile boolean started;

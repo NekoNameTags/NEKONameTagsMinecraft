@@ -1,0 +1,102 @@
+name: Build LabyMod Addon
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner_os:
+        description: "Runner OS"
+        required: true
+        default: "ubuntu-latest"
+        type: choice
+        options:
+          - ubuntu-latest
+          - windows-latest
+      release_tag:
+        description: "Release tag (blank => v<mod_version>-labymod)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build LabyMod (${{ inputs.runner_os }})
+    runs-on: ${{ inputs.runner_os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve Release Values
+        id: rel
+        shell: pwsh
+        run: |
+          $tagInput = "${{ inputs.release_tag }}".Trim()
+          $line = (Get-Content gradle.properties | Where-Object { $_ -match '^mod_version=' } | Select-Object -First 1)
+          $modVer = $line.Split('=')[1].Trim()
+          if ([string]::IsNullOrWhiteSpace($tagInput)) {
+            $tag = "v$modVer-labymod"
+          } else {
+            $tag = $tagInput
+          }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "mod_version=$modVer" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Build LabyMod Addon
+        shell: pwsh
+        working-directory: mod-labymod
+        env:
+          VERSION: ${{ steps.rel.outputs.mod_version }}
+        run: |
+          if ($env:RUNNER_OS -eq "Windows") {
+            .\gradlew.bat --no-daemon :core:build
+          } else {
+            chmod +x ./gradlew
+            ./gradlew --no-daemon :core:build
+          }
+
+      - name: Collect Jars
+        id: collect
+        shell: pwsh
+        env:
+          MOD_VERSION: ${{ steps.rel.outputs.mod_version }}
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $files = Get-ChildItem -Path mod-labymod/core/build/libs -Filter *.jar -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notlike "*-sources.jar" -and $_.Name -notlike "*-javadoc.jar" }
+          if (-not $files) {
+            Write-Host "No jars were produced. Skipping release publish for this run."
+            "has_files=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            exit 0
+          }
+          foreach ($f in $files) {
+            $name = $f.Name
+            if ($name -eq "core-$env:MOD_VERSION.jar") {
+              $name = "NekoNameTags-LabyMod-$env:MOD_VERSION.jar"
+            } elseif ($name -like "core-*.jar") {
+              $name = $name -replace "^core-", "NekoNameTags-LabyMod-"
+            }
+            Copy-Item -Path $f.FullName -Destination (Join-Path "dist" $name) -Force
+          }
+          Get-ChildItem dist
+          "has_files=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Publish GitHub Release
+        if: steps.collect.outputs.has_files == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.rel.outputs.tag }}
+          name: NekoNameTags LabyMod ${{ steps.rel.outputs.mod_version }}
+          files: dist/*.jar
+          generate_release_notes: true
+          overwrite_files: true
