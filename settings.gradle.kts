@@ -16,6 +16,10 @@ val targetLoader = providers.gradleProperty("nnt_target_loader")
     ?.trim()
     ?.lowercase()
     ?: "all"
+val targetMinecraftVersion = providers.gradleProperty("nnt_minecraft_version")
+    .orNull
+    ?.trim()
+    ?: ""
 
 fun includeFor(vararg loaders: String, projectPath: String) {
     if (targetLoader == "all" || loaders.any { it == targetLoader }) {
@@ -25,6 +29,13 @@ fun includeFor(vararg loaders: String, projectPath: String) {
 
 includeFor("paper", "bukkit", projectPath = "plugin-paper")
 includeFor("sponge", projectPath = "plugin-sponge")
-includeFor("fabric", projectPath = "mod-fabric-1_21")
 includeFor("forge", projectPath = "mod-forge-1_21")
 includeFor("neoforge", projectPath = "mod-neoforge-1_21")
+
+if (targetLoader == "all" || targetLoader == "fabric") {
+    if (targetMinecraftVersion == "1.21.10" || targetMinecraftVersion == "1.21.11") {
+        include("mod-fabric-1_21_11")
+    } else {
+        include("mod-fabric-1_21")
+    }
+}

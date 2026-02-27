@@ -1,12 +1,14 @@
-package uk.co.nekosunevr.nekonametags.forge;
+package uk.co.nekosunevr.nekonametags.fabric;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.CameraType;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.decoration.ArmorStand;
-import org.apache.logging.log4j.Logger;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.client.option.Perspective;
+import net.minecraft.entity.decoration.ArmorStandEntity;
+import net.minecraft.text.MutableText;
+import net.minecraft.text.Style;
+import net.minecraft.text.Text;
+import net.minecraft.text.TextColor;
+import org.slf4j.Logger;
 import uk.co.nekosunevr.nekonametags.core.NekoClientSettings;
 import uk.co.nekosunevr.nekonametags.core.NekoTagFormat;
 import uk.co.nekosunevr.nekonametags.core.NekoTagRepository;
@@ -15,14 +17,14 @@ import uk.co.nekosunevr.nekonametags.core.ParsedTagLine;
 import uk.co.nekosunevr.nekonametags.core.TagEffectType;
 import uk.co.nekosunevr.nekonametags.core.TagEffects;
 import uk.co.nekosunevr.nekonametags.core.NekoUpdateChecker;
-import net.minecraftforge.fml.ModList;
+import net.fabricmc.loader.api.FabricLoader;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-final class NekoNameTagsForgeClient {
+final class NekoNameTagsFabricClient {
     private static final long RELOAD_INTERVAL_MS = 30_000L;
     private static final double SELF_BASE_Y_OFFSET = 0.62D;
     private static final double SELF_LINE_GAP_BASE = 0.18D;
@@ -32,9 +34,9 @@ final class NekoNameTagsForgeClient {
     private static volatile List<ParsedTagLine> selfLines = Collections.emptyList();
     private static volatile boolean updateCheckDone;
     private static NekoClientSettings settings;
-    private static final List<ArmorStand> selfHolograms = new ArrayList<ArmorStand>();
+    private static final List<ArmorStandEntity> selfHolograms = new ArrayList<ArmorStandEntity>();
 
-    private NekoNameTagsForgeClient() {
+    private NekoNameTagsFabricClient() {
     }
 
     static synchronized void start(NekoTagRepository repository, Logger logger) {
@@ -42,10 +44,11 @@ final class NekoNameTagsForgeClient {
             return;
         }
         started = true;
+        NekoNameTagsFabricKeys.register();
         settings = NekoClientSettings.loadDefault();
         enabled = settings.isEnabled();
 
-        Thread worker = new Thread(() -> runLoop(repository, logger), "NekoNameTags-Forge-Client");
+        Thread worker = new Thread(() -> runLoop(repository, logger), "NekoNameTags-Fabric-Client");
         worker.setDaemon(true);
         worker.start();
     }
@@ -54,6 +57,25 @@ final class NekoNameTagsForgeClient {
         long nextReloadAt = 0L;
         while (true) {
             long now = System.currentTimeMillis();
+            if (NekoNameTagsFabricKeys.consumeToggleRequested()) {
+                enabled = !enabled;
+                settings.setEnabled(enabled);
+                settings.saveDefault();
+                logger.info("NekoNameTags visibility toggled: {}", enabled ? "ON" : "OFF");
+                sendClientMessage("NekoNameTags visibility: " + (enabled ? "ON" : "OFF"));
+                if (!enabled) {
+                    selfLines = Collections.emptyList();
+                }
+            }
+            if (NekoNameTagsFabricKeys.consumeReloadRequested()) {
+                int count = reloadNow(repository, logger);
+                nextReloadAt = now + RELOAD_INTERVAL_MS;
+                if (count >= 0) {
+                    sendClientMessage("NekoNameTags reloaded: " + count + " entries.");
+                } else {
+                    sendClientMessage("NekoNameTags reload failed. Check latest.log.");
+                }
+            }
             if (now >= nextReloadAt) {
                 reloadNow(repository, logger);
                 nextReloadAt = now + RELOAD_INTERVAL_MS;
@@ -62,7 +84,7 @@ final class NekoNameTagsForgeClient {
                 updateCheckDone = true;
                 checkForUpdatesAndNotify(logger);
             }
-            Minecraft mc = Minecraft.getInstance();
+            MinecraftClient mc = MinecraftClient.getInstance();
             mc.execute(() -> applyTags(mc, repository));
 
             try {
@@ -98,8 +120,8 @@ final class NekoNameTagsForgeClient {
 
     private static String getCurrentVersion() {
         try {
-            return ModList.get().getModContainerById("nekonametags")
-                .map(container -> container.getModInfo().getVersion().toString())
+            return FabricLoader.getInstance().getModContainer("nekonametags")
+                .map(container -> container.getMetadata().getVersion().getFriendlyString())
                 .orElse("");
         } catch (Exception ignored) {
             return "";
@@ -107,16 +129,16 @@ final class NekoNameTagsForgeClient {
     }
 
     private static void sendClientMessage(String message) {
-        Minecraft mc = Minecraft.getInstance();
+        MinecraftClient mc = MinecraftClient.getInstance();
         mc.execute(() -> {
             if (mc.player != null) {
-                mc.player.displayClientMessage(Component.literal(message), false);
+                mc.player.sendMessage(Text.literal(message), false);
             }
         });
     }
 
-    private static void applyTags(Minecraft mc, NekoTagRepository repository) {
-        if (mc.level == null || mc.player == null) {
+    private static void applyTags(MinecraftClient mc, NekoTagRepository repository) {
+        if (mc.world == null || mc.player == null) {
             clearSelfHolograms();
             return;
         }
@@ -124,12 +146,12 @@ final class NekoNameTagsForgeClient {
         selfLines = Collections.emptyList();
         long now = System.currentTimeMillis();
         List<ParsedTagLine> localLines = Collections.emptyList();
-        for (Player player : mc.level.players()) {
+        for (AbstractClientPlayerEntity player : mc.world.getPlayers()) {
             if (!enabled) {
                 player.setCustomNameVisible(false);
                 continue;
             }
-            UUID uuid = player.getUUID();
+            UUID uuid = player.getUuid();
             NekoTagUser user = repository.findForPlayer(NekoTagFormat.normalizePlayerId(uuid), player.getName().getString());
             if (user == null) {
                 continue;
@@ -140,36 +162,36 @@ final class NekoNameTagsForgeClient {
                 continue;
             }
 
-            Component rendered = buildVanillaNameComponent(lines, now);
+            Text rendered = buildVanillaNameText(lines, now);
             if (rendered == null) {
                 continue;
             }
 
             player.setCustomName(rendered);
             player.setCustomNameVisible(true);
-            if (mc.player != null && player.getUUID().equals(mc.player.getUUID())) {
+            if (mc.player != null && player.getUuid().equals(mc.player.getUuid())) {
                 selfLines = lines;
                 localLines = lines;
             }
         }
 
-        if (!enabled || mc.options.getCameraType() == CameraType.FIRST_PERSON) {
+        if (!enabled || mc.options.getPerspective() == Perspective.FIRST_PERSON) {
             clearSelfHolograms();
             return;
         }
         updateSelfHolograms(mc, localLines, now);
     }
 
-    private static Component buildVanillaNameComponent(List<ParsedTagLine> lines, long nowMs) {
-        MutableComponent combined = Component.empty();
+    private static Text buildVanillaNameText(List<ParsedTagLine> lines, long nowMs) {
+        MutableText combined = Text.empty();
         boolean hasAny = false;
         for (int i = 0; i < lines.size(); i++) {
-            Component line = buildStyledLineComponent(lines.get(i), nowMs);
+            Text line = buildStyledLineText(lines.get(i), nowMs);
             if (line == null) {
                 continue;
             }
             if (hasAny) {
-                combined.append("\n");
+                combined.append(Text.literal("\n"));
             }
             combined.append(line);
             hasAny = true;
@@ -206,15 +228,7 @@ final class NekoNameTagsForgeClient {
         return lines;
     }
 
-    static boolean isEnabled() {
-        return enabled;
-    }
-
-    static List<ParsedTagLine> getSelfLines() {
-        return selfLines;
-    }
-
-    static Component buildStyledLineComponent(ParsedTagLine line, long nowMs) {
+    static Text buildStyledLineText(ParsedTagLine line, long nowMs) {
         String text = line.getText();
         if (line.getEffectType() == TagEffectType.ANIMATED) {
             text = TagEffects.animatedWindow(text, nowMs);
@@ -224,46 +238,60 @@ final class NekoNameTagsForgeClient {
         }
 
         if (line.getEffectType() == TagEffectType.RAINBOW) {
-            MutableComponent rainbow = Component.empty();
+            MutableText rainbow = Text.empty();
             for (int i = 0; i < text.length(); i++) {
                 int rgb = TagEffects.rainbowRgb(nowMs, i * 80) & 0x00FFFFFF;
-                rainbow.append(Component.literal(String.valueOf(text.charAt(i)))
-                    .withStyle(style -> style.withColor(rgb).withBold(line.isBold()).withItalic(line.isItalic())));
+                Style style = Style.EMPTY
+                    .withColor(TextColor.fromRgb(rgb))
+                    .withBold(line.isBold())
+                    .withItalic(line.isItalic());
+                rainbow.append(Text.literal(String.valueOf(text.charAt(i))).setStyle(style));
             }
             return rainbow;
         }
 
         int rgb = line.getColorRgb() & 0x00FFFFFF;
-        return Component.literal(text)
-            .withStyle(style -> style.withColor(rgb).withBold(line.isBold()).withItalic(line.isItalic()));
+        Style style = Style.EMPTY
+            .withColor(TextColor.fromRgb(rgb))
+            .withBold(line.isBold())
+            .withItalic(line.isItalic());
+        return Text.literal(text).setStyle(style);
     }
 
-    private static void updateSelfHolograms(Minecraft mc, List<ParsedTagLine> lines, long nowMs) {
-        if (mc.player == null || mc.level == null || lines == null || lines.isEmpty()) {
+    static boolean isEnabled() {
+        return enabled;
+    }
+
+    static List<ParsedTagLine> getSelfLines() {
+        return selfLines;
+    }
+
+    private static void updateSelfHolograms(MinecraftClient mc, List<ParsedTagLine> lines, long nowMs) {
+        if (mc.player == null || mc.world == null || lines == null || lines.isEmpty()) {
             clearSelfHolograms();
             return;
         }
 
         while (selfHolograms.size() < lines.size()) {
-            ArmorStand stand = new ArmorStand(mc.level, mc.player.getX(), mc.player.getY(), mc.player.getZ());
+            ArmorStandEntity stand = new ArmorStandEntity(mc.world, mc.player.getX(), mc.player.getY(), mc.player.getZ());
             stand.setInvisible(true);
             stand.setNoGravity(true);
             stand.setSilent(true);
             stand.setCustomNameVisible(true);
-            mc.level.addFreshEntity(stand);
+            mc.world.addEntity(stand);
             selfHolograms.add(stand);
         }
         while (selfHolograms.size() > lines.size()) {
-            ArmorStand removed = selfHolograms.remove(selfHolograms.size() - 1);
+            ArmorStandEntity removed = selfHolograms.remove(selfHolograms.size() - 1);
             if (removed != null && removed.isAlive()) {
                 removed.discard();
             }
         }
 
-        double y = mc.player.getY() + mc.player.getBbHeight() + SELF_BASE_Y_OFFSET;
+        double y = mc.player.getY() + mc.player.getHeight() + SELF_BASE_Y_OFFSET;
         for (int i = 0; i < lines.size(); i++) {
             ParsedTagLine line = lines.get(i);
-            ArmorStand stand = selfHolograms.get(i);
+            ArmorStandEntity stand = selfHolograms.get(i);
             if (stand == null || !stand.isAlive()) {
                 continue;
             }
@@ -272,14 +300,14 @@ final class NekoNameTagsForgeClient {
                 float prevRatio = Math.max(0.7f, Math.min(3.0f, prev.getSize() / 16.0f));
                 y -= (SELF_LINE_GAP_BASE * prevRatio) + SELF_LINE_GAP_EXTRA;
             }
-            stand.setPos(mc.player.getX(), y, mc.player.getZ());
-            stand.setCustomName(buildStyledLineComponent(line, nowMs));
+            stand.setPosition(mc.player.getX(), y, mc.player.getZ());
+            stand.setCustomName(buildStyledLineText(line, nowMs));
             stand.setCustomNameVisible(true);
         }
     }
 
     private static void clearSelfHolograms() {
-        for (ArmorStand stand : selfHolograms) {
+        for (ArmorStandEntity stand : selfHolograms) {
             if (stand != null && stand.isAlive()) {
                 stand.discard();
             }

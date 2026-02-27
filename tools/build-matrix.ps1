@@ -223,6 +223,9 @@ try {
         $buildTargets = @()
         foreach ($l in $candidateLoaders) {
             $moduleName = $moduleByLoader[$l]
+            if ($Profile -eq "modern_1_21" -and $l -eq "fabric" -and @("1.21.10", "1.21.11") -contains $mc) {
+                $moduleName = "mod-fabric-1_21_11"
+            }
             if (-not $moduleName -or [string]::IsNullOrWhiteSpace([string]$moduleName)) {
                 continue
             }
@@ -302,9 +305,9 @@ try {
             Write-Host "Building Minecraft $mc ($($target.loader)) with task: $moduleTask"
 
             if ($isWindowsHost) {
-                & .\gradlew.bat --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" @props
+                & .\gradlew.bat --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" "-Pnnt_minecraft_version=$mc" @props
             } else {
-                & ./gradlew --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" @props
+                & ./gradlew --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" "-Pnnt_minecraft_version=$mc" @props
             }
             if ($LASTEXITCODE -ne 0 -and $target.loader -eq "neoforge") {
                 Write-Host "NeoForge build failed, cleaning NeoForm caches and retrying once..." -ForegroundColor Yellow
@@ -324,9 +327,9 @@ try {
                 }
 
                 if ($isWindowsHost) {
-                    & .\gradlew.bat --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" @props
+                    & .\gradlew.bat --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" "-Pnnt_minecraft_version=$mc" @props
                 } else {
-                    & ./gradlew --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" @props
+                    & ./gradlew --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" "-Pnnt_minecraft_version=$mc" @props
                 }
             }
             if ($LASTEXITCODE -ne 0) {

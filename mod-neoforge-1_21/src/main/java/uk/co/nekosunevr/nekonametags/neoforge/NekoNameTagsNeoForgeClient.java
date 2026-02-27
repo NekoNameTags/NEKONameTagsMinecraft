@@ -24,6 +24,9 @@ import java.util.UUID;
 
 final class NekoNameTagsNeoForgeClient {
     private static final long RELOAD_INTERVAL_MS = 30_000L;
+    private static final double SELF_BASE_Y_OFFSET = 0.62D;
+    private static final double SELF_LINE_GAP_BASE = 0.18D;
+    private static final double SELF_LINE_GAP_EXTRA = 0.03D;
     private static volatile boolean started;
     private static volatile boolean enabled = true;
     private static volatile List<ParsedTagLine> selfLines = Collections.emptyList();
@@ -276,7 +279,7 @@ final class NekoNameTagsNeoForgeClient {
             }
         }
 
-        double y = mc.player.getY() + mc.player.getBbHeight() + 0.9D;
+        double y = mc.player.getY() + mc.player.getBbHeight() + SELF_BASE_Y_OFFSET;
         for (int i = 0; i < lines.size(); i++) {
             ParsedTagLine line = lines.get(i);
             ArmorStand stand = selfHolograms.get(i);
@@ -286,7 +289,7 @@ final class NekoNameTagsNeoForgeClient {
             if (i > 0) {
                 ParsedTagLine prev = lines.get(i - 1);
                 float prevRatio = Math.max(0.7f, Math.min(3.0f, prev.getSize() / 16.0f));
-                y -= (0.25D * prevRatio) + 0.05D;
+                y -= (SELF_LINE_GAP_BASE * prevRatio) + SELF_LINE_GAP_EXTRA;
             }
             stand.setPos(mc.player.getX(), y, mc.player.getZ());
             stand.setCustomName(buildStyledLineComponent(line, nowMs));
