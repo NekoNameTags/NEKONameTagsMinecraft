@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet("all", "paper", "sponge", "fabric", "forge", "neoforge")]
+    [ValidateSet("all", "paper", "fabric", "forge", "bukkit")]
     [string]$Loader = "all",
 
     [Parameter(Mandatory = $false)]
@@ -8,5 +8,6 @@ param(
 )
 
 $script = Join-Path $PSScriptRoot "build-matrix.ps1"
-& $script -Profile modern_1_21 -MatrixFile "versions/minecraft-1.21x-builds.json" -Loader $Loader -MinecraftVersion $MinecraftVersion
+& $script -Profile mid_1_13_to_1_16 -MatrixFile "versions/minecraft-1.13-1.16-builds.json" -Loader $Loader -MinecraftVersion $MinecraftVersion
 exit $LASTEXITCODE
+

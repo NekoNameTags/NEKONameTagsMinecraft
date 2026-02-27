@@ -1,0 +1,45 @@
+{
+  "versions": [
+    {
+      "mc": "1.13.2",
+      "paper_api_version": "",
+      "sponge_api_version": "",
+      "fabric_loader_version": "",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.13.2-25.0.223",
+      "neoforge_version": ""
+    },
+    {
+      "mc": "1.14.4",
+      "paper_api_version": "",
+      "sponge_api_version": "",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.14.4-28.2.26",
+      "neoforge_version": ""
+    },
+    {
+      "mc": "1.15.2",
+      "paper_api_version": "",
+      "sponge_api_version": "",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.15.2-31.2.57",
+      "neoforge_version": ""
+    },
+    {
+      "mc": "1.16.5",
+      "paper_api_version": "",
+      "sponge_api_version": "",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.16.5-36.2.42",
+      "neoforge_version": ""
+    }
+  ]
+}
+

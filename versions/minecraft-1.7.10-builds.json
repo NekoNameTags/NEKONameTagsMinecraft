@@ -1,0 +1,15 @@
+{
+  "versions": [
+    {
+      "mc": "1.7.10",
+      "paper_api_version": "",
+      "sponge_api_version": "",
+      "fabric_loader_version": "",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.7.10-10.13.4.1614-1.7.10",
+      "neoforge_version": ""
+    }
+  ]
+}
+

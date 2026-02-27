@@ -1,0 +1,75 @@
+{
+  "versions": [
+    {
+      "mc": "1.17.1",
+      "paper_api_version": "",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.17.1-37.1.1",
+      "neoforge_version": ""
+    },
+    {
+      "mc": "1.18.2",
+      "paper_api_version": "",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.18.2-40.3.0",
+      "neoforge_version": ""
+    },
+    {
+      "mc": "1.19.2",
+      "paper_api_version": "",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.19.2-43.5.0",
+      "neoforge_version": ""
+    },
+    {
+      "mc": "1.20.1",
+      "paper_api_version": "1.20.1-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.20.1-47.4.0",
+      "neoforge_version": "20.1.193"
+    },
+    {
+      "mc": "1.20.2",
+      "paper_api_version": "",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.20.2-48.1.0",
+      "neoforge_version": "20.2.86"
+    },
+    {
+      "mc": "1.20.4",
+      "paper_api_version": "1.20.4-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.20.4-49.1.0",
+      "neoforge_version": "20.4.248"
+    },
+    {
+      "mc": "1.20.6",
+      "paper_api_version": "1.20.6-R0.1-SNAPSHOT",
+      "sponge_api_version": "11.0.0",
+      "fabric_loader_version": "0.16.10",
+      "fabric_api_version": "",
+      "yarn_mappings": "",
+      "forge_version": "1.20.6-50.1.0",
+      "neoforge_version": "20.6.125"
+    }
+  ]
+}
+

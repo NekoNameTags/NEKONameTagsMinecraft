@@ -1,4 +1,4 @@
-name: Build 1.21x Matrix
+name: Build 1.7.10 Matrix
 
 on:
   workflow_dispatch:
@@ -18,11 +18,8 @@ on:
         type: choice
         options:
           - all
-          - paper
-          - sponge
-          - fabric
           - forge
-          - neoforge
+          - bukkit
       minecraft_version:
         description: "Optional specific MC version (blank = all in matrix json)"
         required: false
@@ -39,30 +36,30 @@ permissions:
 
 jobs:
   build:
-    name: Build 1.21x (${{ inputs.runner_os }})
+    name: Build 1.7.10 (${{ inputs.runner_os }})
     runs-on: ${{ inputs.runner_os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java 8
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "8"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build 1.21x Matrix
+      - name: Build 1.7.10 Matrix
         shell: pwsh
         run: |
           $loader = "${{ inputs.loader }}"
           $mc = "${{ inputs.minecraft_version }}"
           if ([string]::IsNullOrWhiteSpace($mc)) {
-            ./tools/build-1.21x.ps1 -Loader $loader
+            ./tools/build-1.7.10.ps1 -Loader $loader
           } else {
-            ./tools/build-1.21x.ps1 -Loader $loader -MinecraftVersion $mc
+            ./tools/build-1.7.10.ps1 -Loader $loader -MinecraftVersion $mc
           }
 
       - name: Resolve Release Values

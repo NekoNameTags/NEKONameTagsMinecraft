@@ -52,6 +52,19 @@ This repo uses a practical strategy:
 
 Note: fill loader coordinates in `versions/minecraft-1.21x-builds.json` for each MC patch (Forge/NeoForge/Fabric/Paper entries). Empty fields are reported and skipped.
 
+## Other version bands
+
+- `versions/minecraft-1.7.10-builds.json` + workflow `build-1.7.10-matrix.yml`
+- `versions/minecraft-1.8-1.12-builds.json` + workflow `build-1.8-1.12-matrix.yml`
+- `versions/minecraft-1.13-1.16-builds.json` + workflow `build-1.13-1.16-matrix.yml`
+- `versions/minecraft-1.17-1.20-builds.json` + workflow `build-1.17-1.20-matrix.yml`
+
+Local helpers:
+- `tools\build-1.7.10.bat`
+- `tools\build-1.8-1.12.bat`
+- `tools\build-1.13-1.16.bat`
+- `tools\build-1.17-1.20.bat`
+
 ## Legacy support plan (`1.7.10` and older bands)
 
 Use dedicated legacy modules per version band (do not mix with modern 1.21 modules):

@@ -212,17 +212,19 @@ if ($missingVersions.Count -gt 0) {
     Write-Host "Missing: none"
 }
 
-$missingModules = @()
-foreach ($m in $modules) {
-    $moduleDir = Join-Path $repoRoot $m
-    if (-not (Test-Path $moduleDir)) {
-        $missingModules += $m
+if (-not $PrepareOnly) {
+    $missingModules = @()
+    foreach ($m in $modules) {
+        $moduleDir = Join-Path $repoRoot $m
+        if (-not (Test-Path $moduleDir)) {
+            $missingModules += $m
+        }
     }
-}
-if ($missingModules.Count -gt 0) {
-    Write-Host "Profile '$Profile' cannot build; missing module directories:" -ForegroundColor Red
-    $missingModules | ForEach-Object { Write-Host " - $_" -ForegroundColor Red }
-    exit 1
+    if ($missingModules.Count -gt 0) {
+        Write-Host "Profile '$Profile' cannot build; missing module directories:" -ForegroundColor Red
+        $missingModules | ForEach-Object { Write-Host " - $_" -ForegroundColor Red }
+        exit 1
+    }
 }
 
 $javaHome = Resolve-JavaHome -RequiredMajor $requiredJava
@@ -230,7 +232,12 @@ if (-not $javaHome) {
     Write-Host "Missing required Java $requiredJava for profile '$Profile'." -ForegroundColor Red
     $answer = ""
     while ($answer -notin @("yes", "no", "y", "n")) {
-        $answer = (Read-Host "Install missing JDK $requiredJava now? (yes/no)").ToLowerInvariant().Trim()
+        $raw = Read-Host "Install missing JDK $requiredJava now? (yes/no)"
+        if ($null -eq $raw) {
+            Write-Host "No input received. Build stopped." -ForegroundColor Red
+            exit 1
+        }
+        $answer = $raw.ToLowerInvariant().Trim()
     }
 
     if ($answer -in @("no", "n")) {
