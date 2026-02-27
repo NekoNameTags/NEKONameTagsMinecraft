@@ -18,6 +18,7 @@ $isWindowsHost = ($env:OS -eq "Windows_NT")
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $matrixPath = Join-Path $repoRoot $MatrixFile
+$releaseOut = Join-Path $repoRoot "build\matrix-release"
 
 if (-not (Test-Path $matrixPath)) {
     Write-Host "Missing matrix file: $matrixPath" -ForegroundColor Red
@@ -26,6 +27,11 @@ if (-not (Test-Path $matrixPath)) {
 
 Push-Location $repoRoot
 try {
+    if (Test-Path $releaseOut) {
+        Remove-Item -Recurse -Force $releaseOut
+    }
+    New-Item -ItemType Directory -Force -Path $releaseOut | Out-Null
+
     if ($isWindowsHost) {
         & (Join-Path $repoRoot "tools\build-profiles.ps1") -Profile $Profile -PrepareOnly
         if ($LASTEXITCODE -ne 0) {
@@ -51,18 +57,54 @@ try {
         }
     }
 
-    $moduleTasks = @()
-    switch ($Loader) {
-        "all" {
-            $moduleTasks = @(":plugin-paper:build", ":plugin-sponge:build", ":mod-fabric-1_21:build", ":mod-forge-1_21:build", ":mod-neoforge-1_21:build")
+    $profileModuleByLoader = @{
+        modern_1_21 = @{
+            paper = "plugin-paper"
+            bukkit = "plugin-paper"
+            sponge = "plugin-sponge"
+            fabric = "mod-fabric-1_21"
+            forge = "mod-forge-1_21"
+            neoforge = "mod-neoforge-1_21"
         }
-        "paper" { $moduleTasks = @(":plugin-paper:build") }
-        "bukkit" { $moduleTasks = @(":plugin-paper:build") }
-        "sponge" { $moduleTasks = @(":plugin-sponge:build") }
-        "fabric" { $moduleTasks = @(":mod-fabric-1_21:build") }
-        "forge" { $moduleTasks = @(":mod-forge-1_21:build") }
-        "neoforge" { $moduleTasks = @(":mod-neoforge-1_21:build") }
+        modern_1_17_to_1_20 = @{
+            paper = "plugin-paper-1_20"
+            bukkit = "plugin-paper-1_20"
+            sponge = "plugin-sponge"
+            fabric = "mod-fabric-1_20"
+            forge = "mod-forge-1_20"
+            neoforge = ""
+        }
+        mid_1_13_to_1_16 = @{
+            paper = "plugin-paper-1_16"
+            bukkit = "plugin-paper-1_16"
+            sponge = ""
+            fabric = "mod-fabric-1_16"
+            forge = "mod-forge-1_16"
+            neoforge = ""
+        }
+        legacy_1_8_to_1_12 = @{
+            paper = "legacy-plugin-1_8_8"
+            bukkit = "legacy-plugin-1_8_8"
+            sponge = ""
+            fabric = ""
+            forge = "legacy-forge-1_12_2"
+            neoforge = ""
+        }
+        legacy_1_7_10 = @{
+            paper = "legacy-plugin-1_7_10"
+            bukkit = "legacy-plugin-1_7_10"
+            sponge = ""
+            fabric = ""
+            forge = "legacy-forge-1_7_10"
+            neoforge = ""
+        }
     }
+
+    if (-not $profileModuleByLoader.ContainsKey($Profile)) {
+        Write-Host "No module mapping for profile '$Profile'" -ForegroundColor Red
+        exit 1
+    }
+    $moduleByLoader = $profileModuleByLoader[$Profile]
 
     $requiredFieldsByLoader = @{
         paper = @("paper_api_version")
@@ -75,30 +117,46 @@ try {
 
     foreach ($entry in $versions) {
         $mc = $entry.mc
-        $missing = @()
-
-        $loadersToCheck = @()
+        $candidateLoaders = @()
         if ($Loader -eq "all") {
-            $loadersToCheck = @("paper", "sponge", "fabric", "forge", "neoforge")
+            $candidateLoaders = @("paper", "sponge", "fabric", "forge", "neoforge")
         } else {
-            $loadersToCheck = @($Loader)
+            $candidateLoaders = @($Loader)
         }
 
-        foreach ($l in $loadersToCheck) {
+        $moduleTasks = @()
+        foreach ($l in $candidateLoaders) {
+            $moduleName = $moduleByLoader[$l]
+            if (-not $moduleName -or [string]::IsNullOrWhiteSpace([string]$moduleName)) {
+                continue
+            }
+            $moduleDir = Join-Path $repoRoot $moduleName
+            if (-not (Test-Path $moduleDir)) {
+                Write-Host "Skipping loader '$l' for ${mc}: module missing ($moduleName)" -ForegroundColor Yellow
+                continue
+            }
+
+            $missingFields = @()
             foreach ($field in $requiredFieldsByLoader[$l]) {
                 $value = $entry.$field
                 if (-not $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
-                    $missing += "$l.$field"
+                    $missingFields += "$l.$field"
                 }
             }
+            if ($missingFields.Count -gt 0) {
+                Write-Host "Skipping loader '$l' for ${mc}: missing matrix values $($missingFields -join ', ')" -ForegroundColor Yellow
+                continue
+            }
+
+            $moduleTasks += ":$moduleName:build"
         }
 
-        if ($missing.Count -gt 0) {
-            Write-Host "Skipping $mc due to missing matrix values: $($missing -join ', ')" -ForegroundColor Yellow
+        if ($moduleTasks.Count -eq 0) {
+            Write-Host "Skipping ${mc}: no buildable loaders for current repo/matrix." -ForegroundColor Yellow
             continue
         }
 
-        Write-Host "Building Minecraft $mc ($Loader)..."
+        Write-Host "Building Minecraft $mc ($Loader) with tasks: $($moduleTasks -join ' ')"
         $props = @(
             "-Pminecraft_version=$mc",
             "-Ppaper_api_version=$($entry.paper_api_version)",
@@ -119,12 +177,26 @@ try {
             Write-Host "Build failed for $mc" -ForegroundColor Red
             exit $LASTEXITCODE
         }
+
+        $jarFiles = Get-ChildItem -Recurse -Path . -Filter *.jar |
+            Where-Object {
+                $_.FullName -like "*\build\libs\*" -and
+                $_.Name -notlike "*-sources.jar" -and
+                $_.Name -notlike "*-javadoc.jar"
+            }
+        foreach ($jar in $jarFiles) {
+            $base = [System.IO.Path]::GetFileNameWithoutExtension($jar.Name)
+            $ext = [System.IO.Path]::GetExtension($jar.Name)
+            $outName = "$base-mc$mc$ext"
+            Copy-Item $jar.FullName -Destination (Join-Path $releaseOut $outName) -Force
+        }
     }
 
+    $count = @(Get-ChildItem $releaseOut -Filter *.jar -ErrorAction SilentlyContinue).Count
+    Write-Host "Release files prepared: $count ($releaseOut)"
     Write-Host "Done."
     exit 0
 }
 finally {
     Pop-Location
 }
-

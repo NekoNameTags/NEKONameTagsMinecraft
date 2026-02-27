@@ -1,4 +1,4 @@
-﻿name: Build 1.13-1.16 Matrix
+name: Build 1.13-1.16 Matrix
 
 on:
   workflow_dispatch:
@@ -23,11 +23,12 @@ on:
           - forge
           - bukkit
       minecraft_version:
-        description: "Minecraft version to build and publish"
-        required: true
+        description: "Optional specific MC version (blank = all in matrix json)"
+        required: false
+        default: ""
         type: string
       release_tag:
-        description: "Release tag (blank => v<minecraft_version>)"
+        description: "Release tag (blank => v<mod_version>-all or v<mod_version>-mc<version>)"
         required: false
         default: ""
         type: string
@@ -68,34 +69,39 @@ jobs:
         shell: pwsh
         run: |
           $mc = "${{ inputs.minecraft_version }}".Trim()
-          if ([string]::IsNullOrWhiteSpace($mc)) {
-            Write-Error "minecraft_version is required to publish release assets."
-          }
           $tagInput = "${{ inputs.release_tag }}".Trim()
           $line = (Get-Content gradle.properties | Where-Object { $_ -match '^mod_version=' } | Select-Object -First 1)
           $modVer = $line.Split('=')[1].Trim()
+          if ([string]::IsNullOrWhiteSpace($mc)) {
+            $scope = "all"
+            $scopeName = "All Versions"
+          } else {
+            $scope = "mc$mc"
+            $scopeName = "MC $mc"
+          }
           if ([string]::IsNullOrWhiteSpace($tagInput)) {
-            $tag = "v$modVer-mc$mc"
+            $tag = "v$modVer-$scope"
           } else {
             $tag = $tagInput
           }
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "mod_version=$modVer" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "scope_name=$scopeName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Collect Jars
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Get-ChildItem -Recurse -Path . -Filter *.jar |
-            Where-Object { $_.FullName -like "*build*libs*" -and $_.Name -notlike "*-sources.jar" -and $_.Name -notlike "*-javadoc.jar" } |
-            ForEach-Object { Copy-Item $_.FullName -Destination (Join-Path "dist" $_.Name) -Force }
+          $files = Get-ChildItem -Path build/matrix-release -Filter *.jar -ErrorAction SilentlyContinue
+          if (-not $files) { throw "No jars were produced." }
+          Copy-Item -Path $files.FullName -Destination dist -Force
           Get-ChildItem dist
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.rel.outputs.tag }}
-          name: NekoNameTags ${{ steps.rel.outputs.mod_version }} (MC ${{ inputs.minecraft_version }})
+          name: NekoNameTags ${{ steps.rel.outputs.mod_version }} (${{ steps.rel.outputs.scope_name }})
           files: dist/*.jar
           generate_release_notes: true
 
