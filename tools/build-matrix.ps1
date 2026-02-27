@@ -115,6 +115,8 @@ try {
         neoforge = @("neoforge_version")
     }
 
+    $failedBuilds = @()
+
     foreach ($entry in $versions) {
         $mc = $entry.mc
         $candidateLoaders = @()
@@ -157,16 +159,22 @@ try {
         }
 
         Write-Host "Building Minecraft $mc ($Loader) with tasks: $($moduleTasks -join ' ')"
-        $props = @(
-            "-Pminecraft_version=$mc",
-            "-Ppaper_api_version=$($entry.paper_api_version)",
-            "-Psponge_api_version=$($entry.sponge_api_version)",
-            "-Pfabric_loader_version=$($entry.fabric_loader_version)",
-            "-Pfabric_api_version=$($entry.fabric_api_version)",
-            "-Pyarn_mappings=$($entry.yarn_mappings)",
-            "-Pforge_version=$($entry.forge_version)",
-            "-Pneoforge_version=$($entry.neoforge_version)"
-        )
+        $props = @("-Pminecraft_version=$mc")
+        $optionalProps = @{
+            paper_api_version = $entry.paper_api_version
+            sponge_api_version = $entry.sponge_api_version
+            fabric_loader_version = $entry.fabric_loader_version
+            fabric_api_version = $entry.fabric_api_version
+            yarn_mappings = $entry.yarn_mappings
+            forge_version = $entry.forge_version
+            neoforge_version = $entry.neoforge_version
+        }
+        foreach ($k in $optionalProps.Keys) {
+            $v = [string]$optionalProps[$k]
+            if (-not [string]::IsNullOrWhiteSpace($v)) {
+                $props += "-P$k=$v"
+            }
+        }
 
         if ($isWindowsHost) {
             & .\gradlew.bat --no-daemon :core:build @moduleTasks @props
@@ -175,8 +183,9 @@ try {
             & ./gradlew --no-daemon :core:build @moduleTasks @props
         }
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "Build failed for $mc" -ForegroundColor Red
-            exit $LASTEXITCODE
+            Write-Host "Build failed for $mc (continuing)." -ForegroundColor Red
+            $failedBuilds += $mc
+            continue
         }
 
         $jarFiles = Get-ChildItem -Recurse -Path . -Filter *.jar |
@@ -195,6 +204,13 @@ try {
 
     $count = @(Get-ChildItem $releaseOut -Filter *.jar -ErrorAction SilentlyContinue).Count
     Write-Host "Release files prepared: $count ($releaseOut)"
+    if ($failedBuilds.Count -gt 0) {
+        Write-Host "Failed versions: $($failedBuilds -join ', ')" -ForegroundColor Yellow
+    }
+    if ($count -eq 0) {
+        Write-Host "No successful builds produced jars." -ForegroundColor Red
+        exit 1
+    }
     Write-Host "Done."
     exit 0
 }
