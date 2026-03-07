@@ -1,0 +1,13 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+
+[[mods]]
+modId = "nekonametags"
+version = "${version}"
+displayName = "NekoNameTags"
+authors = "NekoSuneVR"
+description = '''
+NekoNameTags NeoForge module.
+'''
+

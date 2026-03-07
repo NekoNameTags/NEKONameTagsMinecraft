@@ -1,0 +1,11 @@
+{
+    "mc":  "1.12.2",
+    "source_matrix":  "versions/minecraft-1.8-1.12-builds.json",
+    "paper_api_version":  "",
+    "sponge_api_version":  "",
+    "fabric_loader_version":  "",
+    "fabric_api_version":  "",
+    "yarn_mappings":  "",
+    "forge_version":  "1.12.2-14.23.5.2860",
+    "neoforge_version":  ""
+}

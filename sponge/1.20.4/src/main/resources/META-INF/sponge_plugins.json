@@ -1,0 +1,17 @@
+{
+  "loader": {
+    "name": "java_plain",
+    "version": "1.0"
+  },
+  "license": "MIT",
+  "plugins": [
+    {
+      "id": "nekonametags",
+      "name": "NekoNameTags",
+      "version": "${version}",
+      "entrypoint": "uk.co.nekosunevr.nekonametags.sponge.NekoNameTagsSponge",
+      "description": "NekoNameTags Sponge plugin"
+    }
+  ]
+}
+

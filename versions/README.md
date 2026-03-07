@@ -17,3 +17,4 @@ To support `1.7.10` through `1.21.x`, keep separate modules per loader/version b
 4. `legacy_1_8_to_1_12`
 5. `legacy_1_7_10`
 
+See also: `versions/legacy-render-split.md` for legacy folder separation and fallback rendering notes.

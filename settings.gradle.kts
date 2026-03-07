@@ -17,25 +17,31 @@ val targetLoader = providers.gradleProperty("nnt_target_loader")
     ?.lowercase()
     ?: "all"
 val targetMinecraftVersion = providers.gradleProperty("nnt_minecraft_version")
+    .orElse(providers.gradleProperty("minecraft_version"))
     .orNull
     ?.trim()
-    ?: ""
+    ?: "1.21.1"
 
-fun includeFor(vararg loaders: String, projectPath: String) {
-    if (targetLoader == "all" || loaders.any { it == targetLoader }) {
-        include(projectPath)
-    }
+val normalizedLoader = when (targetLoader) {
+    "bukkit" -> "paper"
+    else -> targetLoader
 }
 
-includeFor("paper", "bukkit", projectPath = "plugin-paper")
-includeFor("sponge", projectPath = "plugin-sponge")
-includeFor("forge", projectPath = "mod-forge-1_21")
-includeFor("neoforge", projectPath = "mod-neoforge-1_21")
-
-if (targetLoader == "all" || targetLoader == "fabric") {
-    if (targetMinecraftVersion == "1.21.10" || targetMinecraftVersion == "1.21.11") {
-        include("mod-fabric-1_21_11")
-    } else {
-        include("mod-fabric-1_21")
+fun includeVersionModule(loader: String, mcVersion: String) {
+    val folder = file("$loader/$mcVersion")
+    if (!folder.exists()) {
+        return
     }
+    val versionSegment = mcVersion.replace('.', '_')
+    val projectPath = "$loader:$versionSegment"
+    include(projectPath)
+    project(":$projectPath").projectDir = folder
+}
+
+if (normalizedLoader == "all") {
+    listOf("paper", "sponge", "fabric", "forge", "neoforge").forEach { loader ->
+        includeVersionModule(loader, targetMinecraftVersion)
+    }
+} else if (normalizedLoader in setOf("paper", "sponge", "fabric", "forge", "neoforge")) {
+    includeVersionModule(normalizedLoader, targetMinecraftVersion)
 }

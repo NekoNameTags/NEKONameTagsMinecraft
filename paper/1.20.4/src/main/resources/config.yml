@@ -1,0 +1,6 @@
+api-url: "https://nekont.nekosunevr.co.uk/api/minecraft/nametags"
+enabled: true
+debug: false
+refresh-ticks: 4
+cache-file: "cache/nametags-cache.json"
+cache-refresh-seconds: 300

@@ -146,54 +146,21 @@ try {
         }
     }
 
-    $profileModuleByLoader = @{
-        modern_1_21 = @{
-            paper = "plugin-paper"
-            bukkit = "plugin-paper"
-            sponge = "plugin-sponge"
-            fabric = "mod-fabric-1_21"
-            forge = "mod-forge-1_21"
-            neoforge = "mod-neoforge-1_21"
-        }
-        modern_1_17_to_1_20 = @{
-            paper = "plugin-paper-1_20"
-            bukkit = "plugin-paper-1_20"
-            sponge = "plugin-sponge"
-            fabric = "mod-fabric-1_20"
-            forge = "mod-forge-1_20"
-            neoforge = ""
-        }
-        mid_1_13_to_1_16 = @{
-            paper = "plugin-paper-1_16"
-            bukkit = "plugin-paper-1_16"
-            sponge = ""
-            fabric = "mod-fabric-1_16"
-            forge = "mod-forge-1_16"
-            neoforge = ""
-        }
-        legacy_1_8_to_1_12 = @{
-            paper = "legacy-plugin-1_8_8"
-            bukkit = "legacy-plugin-1_8_8"
-            sponge = ""
-            fabric = ""
-            forge = "legacy-forge-1_12_2"
-            neoforge = ""
-        }
-        legacy_1_7_10 = @{
-            paper = "legacy-plugin-1_7_10"
-            bukkit = "legacy-plugin-1_7_10"
-            sponge = ""
-            fabric = ""
-            forge = "legacy-forge-1_7_10"
-            neoforge = ""
-        }
-    }
+    function Get-ModuleNameForLoaderVersion {
+        param(
+            [Parameter(Mandatory = $true)][string]$LoaderName,
+            [Parameter(Mandatory = $true)][string]$McVersion
+        )
 
-    if (-not $profileModuleByLoader.ContainsKey($Profile)) {
-        Write-Host "No module mapping for profile '$Profile'" -ForegroundColor Red
-        exit 1
+        $effectiveLoader = if ($LoaderName -eq "bukkit") { "paper" } else { $LoaderName }
+        if ($effectiveLoader -notin @("paper", "sponge", "fabric", "forge", "neoforge")) {
+            return ""
+        }
+        if ([string]::IsNullOrWhiteSpace($McVersion)) {
+            return ""
+        }
+        return "$effectiveLoader/$McVersion"
     }
-    $moduleByLoader = $profileModuleByLoader[$Profile]
 
     $requiredFieldsByLoader = @{
         paper = @("paper_api_version")
@@ -222,10 +189,7 @@ try {
 
         $buildTargets = @()
         foreach ($l in $candidateLoaders) {
-            $moduleName = $moduleByLoader[$l]
-            if ($Profile -eq "modern_1_21" -and $l -eq "fabric" -and @("1.21.10", "1.21.11") -contains $mc) {
-                $moduleName = "mod-fabric-1_21_11"
-            }
+            $moduleName = Get-ModuleNameForLoaderVersion -LoaderName $l -McVersion $mc
             if (-not $moduleName -or [string]::IsNullOrWhiteSpace([string]$moduleName)) {
                 continue
             }
@@ -301,7 +265,14 @@ try {
                 }
             }
 
-            $moduleTask = ":$($target.module):build"
+            $moduleParts = $target.module -split '/'
+            if ($moduleParts.Count -eq 2) {
+                $loaderPart = $moduleParts[0]
+                $versionPart = ($moduleParts[1] -replace '\.', '_')
+                $moduleTask = ":${loaderPart}:${versionPart}:build"
+            } else {
+                $moduleTask = ":$($target.module):build"
+            }
             Write-Host "Building Minecraft $mc ($($target.loader)) with task: $moduleTask"
 
             if ($isWindowsHost) {
