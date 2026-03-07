@@ -1,21 +1,21 @@
 package uk.co.nekosunevr.nekonametags.neoforge;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.CameraType;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.player.Player;
+import net.neoforged.fml.ModList;
 import org.apache.logging.log4j.Logger;
 import uk.co.nekosunevr.nekonametags.core.NekoClientSettings;
 import uk.co.nekosunevr.nekonametags.core.NekoTagFormat;
 import uk.co.nekosunevr.nekonametags.core.NekoTagRepository;
 import uk.co.nekosunevr.nekonametags.core.NekoTagUser;
+import uk.co.nekosunevr.nekonametags.core.NekoUpdateChecker;
 import uk.co.nekosunevr.nekonametags.core.ParsedTagLine;
 import uk.co.nekosunevr.nekonametags.core.TagEffectType;
 import uk.co.nekosunevr.nekonametags.core.TagEffects;
-import uk.co.nekosunevr.nekonametags.core.NekoUpdateChecker;
-import net.neoforged.fml.ModList;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,8 +36,8 @@ final class NekoNameTagsNeoForgeClient {
     private static volatile boolean enabled = true;
     private static volatile List<ParsedTagLine> selfLines = Collections.emptyList();
     private static volatile boolean updateCheckDone;
-    private static volatile boolean essentialInstalled;
     private static NekoClientSettings settings;
+    private static volatile boolean essentialInstalled;
     private static final Map<UUID, List<ArmorStand>> playerHolograms = new HashMap<UUID, List<ArmorStand>>();
 
     private NekoNameTagsNeoForgeClient() {
@@ -157,46 +157,33 @@ final class NekoNameTagsNeoForgeClient {
         long now = System.currentTimeMillis();
         Set<UUID> activePlayers = new HashSet<UUID>();
         for (Player player : mc.level.players()) {
-            UUID uuid = player.getUUID();
-            NekoTagUser user = repository.findForPlayer(NekoTagFormat.normalizePlayerId(uuid), player.getName().getString());
+            UUID profileId = player.getGameProfile() != null && player.getGameProfile().getId() != null
+                ? player.getGameProfile().getId()
+                : player.getUUID();
+            String profileName = player.getGameProfile() != null ? player.getGameProfile().getName() : player.getName().getString();
+            NekoTagUser user = repository.findForPlayer(NekoTagFormat.normalizePlayerId(profileId), profileName);
             if (user == null) {
                 continue;
             }
 
-            boolean isSelf = mc.player != null && player.getUUID().equals(mc.player.getUUID());
+            boolean isSelf = mc.player.getUUID().equals(player.getUUID());
             if (isSelf && firstPerson) {
                 continue;
             }
-            boolean includeNameLine = !(essentialInstalled && isSelf);
-            List<ParsedTagLine> lines = buildParsedLines(user, player.getGameProfile().getName(), includeNameLine);
+
+            // Never inject username via NeoForge path; keep vanilla/Essential nameplate and only add custom rows above it.
+            List<ParsedTagLine> lines = buildParsedLines(user, profileName, false);
             if (lines.isEmpty()) {
                 continue;
             }
 
-            activePlayers.add(uuid);
+            activePlayers.add(player.getUUID());
             updatePlayerHolograms(mc, player, lines, now);
             if (isSelf) {
                 selfLines = lines;
             }
         }
         clearStaleHolograms(activePlayers);
-    }
-
-    private static Component buildVanillaNameComponent(List<ParsedTagLine> lines, long nowMs) {
-        MutableComponent combined = Component.empty();
-        boolean hasAny = false;
-        for (int i = 0; i < lines.size(); i++) {
-            Component line = buildStyledLineComponent(lines.get(i), nowMs);
-            if (line == null) {
-                continue;
-            }
-            if (hasAny) {
-                combined.append("\n");
-            }
-            combined.append(line);
-            hasAny = true;
-        }
-        return hasAny ? combined : null;
     }
 
     private static List<ParsedTagLine> buildParsedLines(NekoTagUser user, String playerName, boolean includeNameLine) {
@@ -288,7 +275,7 @@ final class NekoNameTagsNeoForgeClient {
             stand.setNoGravity(true);
             stand.setSilent(true);
             stand.setCustomNameVisible(true);
-            mc.level.addFreshEntity(stand);
+            mc.level.addEntity(stand);
             stands.add(stand);
         }
         while (stands.size() > lines.size()) {

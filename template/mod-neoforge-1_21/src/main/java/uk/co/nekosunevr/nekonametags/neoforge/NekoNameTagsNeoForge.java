@@ -1,7 +1,6 @@
 package uk.co.nekosunevr.nekonametags.neoforge;
 
 import net.neoforged.fml.common.Mod;
-import net.neoforged.neoforge.common.NeoForge;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import uk.co.nekosunevr.nekonametags.core.NekoTagRepository;
@@ -25,7 +24,6 @@ public final class NekoNameTagsNeoForge {
 
         if (isClientEnvironment()) {
             NekoNameTagsNeoForgeClient.start(repository, LOGGER);
-            NeoForge.EVENT_BUS.addListener(NekoNameTagsNeoForgeClient::onRenderNameTag);
         }
     }
 

@@ -1,49 +1,44 @@
 package uk.co.nekosunevr.nekonametags.neoforge;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.CameraType;
-import net.minecraft.client.gui.Font;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.player.Player;
+import net.neoforged.fml.ModList;
 import org.apache.logging.log4j.Logger;
 import uk.co.nekosunevr.nekonametags.core.NekoClientSettings;
 import uk.co.nekosunevr.nekonametags.core.NekoTagFormat;
 import uk.co.nekosunevr.nekonametags.core.NekoTagRepository;
 import uk.co.nekosunevr.nekonametags.core.NekoTagUser;
+import uk.co.nekosunevr.nekonametags.core.NekoUpdateChecker;
 import uk.co.nekosunevr.nekonametags.core.ParsedTagLine;
 import uk.co.nekosunevr.nekonametags.core.TagEffectType;
 import uk.co.nekosunevr.nekonametags.core.TagEffects;
-import uk.co.nekosunevr.nekonametags.core.NekoUpdateChecker;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforge.client.event.RenderNameTagEvent;
-import net.neoforged.neoforge.common.util.TriState;
-import org.joml.Matrix4f;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 final class NekoNameTagsNeoForgeClient {
     private static final long RELOAD_INTERVAL_MS = 30_000L;
-    private static final float MIN_LINE_SCALE = 0.7F;
-    private static final float MAX_LINE_SCALE = 3.0F;
-    private static final float ROW_PIXEL_GAP = 2.0F;
-    private static final float VANILLA_NAME_SCALE = 0.025F;
-    private static final float NAME_TAG_Y_OFFSET = 0.5F;
-    private static final long DEBUG_LOG_INTERVAL_MS = 5_000L;
+    private static final double BASE_OFFSET = 0.18D;
+    private static final double VANILLA_NAME_CLEARANCE = 0.08D;
+    private static final double SELF_LINE_GAP_BASE = 0.18D;
+    private static final double SELF_LINE_GAP_EXTRA = 0.03D;
     private static volatile boolean started;
     private static volatile boolean enabled = true;
     private static volatile List<ParsedTagLine> selfLines = Collections.emptyList();
     private static volatile boolean updateCheckDone;
-    private static volatile boolean essentialInstalled;
     private static NekoClientSettings settings;
-    private static volatile Map<UUID, List<ParsedTagLine>> renderedTagLines = Collections.emptyMap();
-    private static volatile long lastDebugLogAt;
-    private static volatile Logger runtimeLogger;
+    private static volatile boolean essentialInstalled;
+    private static final Map<UUID, List<ArmorStand>> playerHolograms = new HashMap<UUID, List<ArmorStand>>();
 
     private NekoNameTagsNeoForgeClient() {
     }
@@ -53,7 +48,6 @@ final class NekoNameTagsNeoForgeClient {
             return;
         }
         started = true;
-        runtimeLogger = logger;
         settings = NekoClientSettings.loadDefault();
         enabled = settings.isEnabled();
         essentialInstalled = isEssentialInstalled();
@@ -149,18 +143,19 @@ final class NekoNameTagsNeoForgeClient {
 
     private static void applyTags(Minecraft mc, NekoTagRepository repository) {
         if (mc.level == null || mc.player == null) {
-            renderedTagLines = Collections.emptyMap();
+            clearAllHolograms();
             return;
         }
 
         selfLines = Collections.emptyList();
         if (!enabled) {
-            renderedTagLines = Collections.emptyMap();
+            clearAllHolograms();
             return;
         }
 
         boolean firstPerson = mc.options.getCameraType() == CameraType.FIRST_PERSON;
-        Map<UUID, List<ParsedTagLine>> nextRendered = new HashMap<UUID, List<ParsedTagLine>>();
+        long now = System.currentTimeMillis();
+        Set<UUID> activePlayers = new HashSet<UUID>();
         for (Player player : mc.level.players()) {
             UUID profileId = player.getGameProfile() != null && player.getGameProfile().getId() != null
                 ? player.getGameProfile().getId()
@@ -171,47 +166,24 @@ final class NekoNameTagsNeoForgeClient {
                 continue;
             }
 
-            boolean isSelf = mc.player != null && player.getUUID().equals(mc.player.getUUID());
+            boolean isSelf = mc.player.getUUID().equals(player.getUUID());
             if (isSelf && firstPerson) {
                 continue;
             }
-            boolean includeNameLine = false;
-            List<ParsedTagLine> lines = buildParsedLines(user, profileName, includeNameLine);
+
+            // Never inject username via NeoForge path; keep vanilla/Essential nameplate and only add custom rows above it.
+            List<ParsedTagLine> lines = buildParsedLines(user, profileName, false);
             if (lines.isEmpty()) {
                 continue;
             }
 
-            nextRendered.put(player.getUUID(), new ArrayList<ParsedTagLine>(lines));
+            activePlayers.add(player.getUUID());
+            updatePlayerHolograms(mc, player, lines, now);
             if (isSelf) {
                 selfLines = lines;
             }
         }
-        long nowMs = System.currentTimeMillis();
-        if (runtimeLogger != null && nowMs - lastDebugLogAt >= DEBUG_LOG_INTERVAL_MS) {
-            lastDebugLogAt = nowMs;
-            runtimeLogger.info("NekoNameTags debug: visiblePlayers={}, renderedRows={}",
-                mc.level.players().size(), nextRendered.size());
-        }
-        renderedTagLines = nextRendered.isEmpty()
-            ? Collections.<UUID, List<ParsedTagLine>>emptyMap()
-            : Collections.unmodifiableMap(nextRendered);
-    }
-
-    private static Component buildVanillaNameComponent(List<ParsedTagLine> lines, long nowMs) {
-        MutableComponent combined = Component.empty();
-        boolean hasAny = false;
-        for (int i = 0; i < lines.size(); i++) {
-            Component line = buildStyledLineComponent(lines.get(i), nowMs);
-            if (line == null) {
-                continue;
-            }
-            if (hasAny) {
-                combined.append("\n");
-            }
-            combined.append(line);
-            hasAny = true;
-        }
-        return hasAny ? combined : null;
+        clearStaleHolograms(activePlayers);
     }
 
     private static List<ParsedTagLine> buildParsedLines(NekoTagUser user, String playerName, boolean includeNameLine) {
@@ -261,68 +233,6 @@ final class NekoNameTagsNeoForgeClient {
         return selfLines;
     }
 
-    static List<ParsedTagLine> getRenderedTagLines(UUID playerId) {
-        if (playerId == null) {
-            return null;
-        }
-        return renderedTagLines.get(playerId);
-    }
-
-    static void onRenderNameTag(RenderNameTagEvent event) {
-        if (!enabled || event == null) {
-            return;
-        }
-        if (!(event.getEntity() instanceof Player player)) {
-            return;
-        }
-        List<ParsedTagLine> lines = getRenderedTagLines(player.getUUID());
-        if (lines == null || lines.isEmpty()) {
-            return;
-        }
-
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.options.getCameraType() == CameraType.FIRST_PERSON
-            && mc.player != null
-            && player.getUUID().equals(mc.player.getUUID())) {
-            return;
-        }
-
-        long nowMs = System.currentTimeMillis();
-        Font font = mc.font;
-        int bg = ((int) (mc.options.getBackgroundOpacity(0.25F) * 255.0F) << 24);
-        event.getPoseStack().pushPose();
-        event.getPoseStack().translate(0.0D, player.getBbHeight() + NAME_TAG_Y_OFFSET, 0.0D);
-        event.getPoseStack().mulPose(mc.getEntityRenderDispatcher().cameraOrientation());
-        event.getPoseStack().scale(-VANILLA_NAME_SCALE, -VANILLA_NAME_SCALE, VANILLA_NAME_SCALE);
-
-        float y = -(font.lineHeight + ROW_PIXEL_GAP);
-        for (int i = lines.size() - 1; i >= 0; i--) {
-            ParsedTagLine line = lines.get(i);
-            Component content = buildStyledLineComponent(line, nowMs);
-            if (content == null) {
-                continue;
-            }
-
-            float ratio = clampLineScale(line.getSize() / 16.0f);
-            event.getPoseStack().pushPose();
-            event.getPoseStack().scale(ratio, ratio, 1.0F);
-            Matrix4f scaledMatrix = event.getPoseStack().last().pose();
-            float drawY = y / ratio;
-            float x = -font.width(content) / 2.0F;
-            font.drawInBatch(content, x, drawY, 0x20FFFFFF, false, scaledMatrix, event.getMultiBufferSource(), Font.DisplayMode.SEE_THROUGH, bg, event.getPackedLight());
-            font.drawInBatch(content, x, drawY, 0xFFFFFFFF, false, scaledMatrix, event.getMultiBufferSource(), Font.DisplayMode.NORMAL, bg, event.getPackedLight());
-            event.getPoseStack().popPose();
-
-            y -= (font.lineHeight * ratio) + ROW_PIXEL_GAP;
-        }
-        event.getPoseStack().popPose();
-        event.setCanRender(TriState.DEFAULT);
-    }
-
-    private static float clampLineScale(float ratio) {
-        return Math.max(MIN_LINE_SCALE, Math.min(MAX_LINE_SCALE, ratio));
-    }
-
     static Component buildStyledLineComponent(ParsedTagLine line, long nowMs) {
         String text = line.getText();
         if (line.getEffectType() == TagEffectType.ANIMATED) {
@@ -347,4 +257,84 @@ final class NekoNameTagsNeoForgeClient {
             .withStyle(style -> style.withColor(rgb).withBold(line.isBold()).withItalic(line.isItalic()));
     }
 
+    private static void updatePlayerHolograms(Minecraft mc, Player player, List<ParsedTagLine> lines, long nowMs) {
+        if (mc.level == null || player == null || lines == null || lines.isEmpty()) {
+            return;
+        }
+
+        UUID playerId = player.getUUID();
+        List<ArmorStand> stands = playerHolograms.get(playerId);
+        if (stands == null) {
+            stands = new ArrayList<ArmorStand>();
+            playerHolograms.put(playerId, stands);
+        }
+
+        while (stands.size() < lines.size()) {
+            ArmorStand stand = new ArmorStand(mc.level, player.getX(), player.getY(), player.getZ());
+            stand.setInvisible(true);
+            stand.setNoGravity(true);
+            stand.setSilent(true);
+            stand.setCustomNameVisible(true);
+            mc.level.addEntity(stand);
+            stands.add(stand);
+        }
+        while (stands.size() > lines.size()) {
+            ArmorStand removed = stands.remove(stands.size() - 1);
+            if (removed != null && removed.isAlive()) {
+                removed.discard();
+            }
+        }
+
+        double y = player.getY() + player.getBbHeight() + BASE_OFFSET + VANILLA_NAME_CLEARANCE;
+        for (int i = 0; i < lines.size(); i++) {
+            ParsedTagLine line = lines.get(i);
+            ArmorStand stand = stands.get(i);
+            if (stand == null || !stand.isAlive()) {
+                continue;
+            }
+            if (i > 0) {
+                ParsedTagLine prev = lines.get(i - 1);
+                float prevRatio = Math.max(0.7f, Math.min(3.0f, prev.getSize() / 16.0f));
+                y -= (SELF_LINE_GAP_BASE * prevRatio) + SELF_LINE_GAP_EXTRA;
+            }
+            stand.setPos(player.getX(), y, player.getZ());
+            stand.setCustomName(buildStyledLineComponent(line, nowMs));
+            stand.setCustomNameVisible(true);
+        }
+    }
+
+    private static void clearStaleHolograms(Set<UUID> activePlayers) {
+        List<UUID> stalePlayers = new ArrayList<UUID>();
+        for (UUID playerId : playerHolograms.keySet()) {
+            if (!activePlayers.contains(playerId)) {
+                stalePlayers.add(playerId);
+            }
+        }
+        for (UUID playerId : stalePlayers) {
+            clearHologramsFor(playerId);
+        }
+    }
+
+    private static void clearHologramsFor(UUID playerId) {
+        List<ArmorStand> stands = playerHolograms.remove(playerId);
+        if (stands == null) {
+            return;
+        }
+        for (ArmorStand stand : stands) {
+            if (stand != null && stand.isAlive()) {
+                stand.discard();
+            }
+        }
+    }
+
+    private static void clearAllHolograms() {
+        for (List<ArmorStand> stands : playerHolograms.values()) {
+            for (ArmorStand stand : stands) {
+                if (stand != null && stand.isAlive()) {
+                    stand.discard();
+                }
+            }
+        }
+        playerHolograms.clear();
+    }
 }

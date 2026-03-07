@@ -265,7 +265,7 @@ final class NekoNameTagsForgeClient {
 
         while (stands.size() < lines.size()) {
             ArmorStand stand = new ArmorStand(mc.level, player.getX(), player.getY(), player.getZ());
-            stand.setInvisible(true);
+            stand.setInvisible(false);
             stand.setNoGravity(true);
             stand.setSilent(true);
             stand.setCustomNameVisible(true);

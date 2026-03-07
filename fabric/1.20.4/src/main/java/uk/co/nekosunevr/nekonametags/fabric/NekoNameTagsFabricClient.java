@@ -293,7 +293,7 @@ final class NekoNameTagsFabricClient {
 
         while (stands.size() < lines.size()) {
             ArmorStandEntity stand = new ArmorStandEntity(mc.world, player.getX(), player.getY(), player.getZ());
-            stand.setInvisible(true);
+            stand.setInvisible(false);
             stand.setNoGravity(true);
             stand.setSilent(true);
             stand.setCustomNameVisible(true);
