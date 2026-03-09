@@ -1,6 +1,7 @@
 package uk.co.nekosunevr.nekonametags.core;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.BufferedReader;
@@ -15,9 +16,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class NekoTagRepository {
@@ -26,6 +29,8 @@ public final class NekoTagRepository {
     private static final String ALLOWED_HOST = "nekont.nekosunevr.co.uk";
     private static final String ALLOWED_PATH = "/api/minecraft/nametags";
     private static final long DEFAULT_REFRESH_MILLIS = 300_000L;
+    private static final String MOJANG_SESSION_PROFILE_BASE = "https://sessionserver.mojang.com/session/minecraft/profile/";
+    private static final Map<String, String> UUID_NAME_CACHE = new ConcurrentHashMap<String, String>();
 
     private final Gson gson = new Gson();
     private final String apiUrl;
@@ -169,10 +174,82 @@ public final class NekoTagRepository {
                     if (!compact.equals(key)) {
                         mapped.put(compact, user);
                     }
+                    if (isUuidKey(key)) {
+                        String resolvedName = resolveNameForUuid(compact);
+                        if (resolvedName != null && !resolvedName.isEmpty()) {
+                            mapped.put(normalizeUserKey(resolvedName), user);
+                        }
+                    }
                 }
             }
         }
         return Collections.unmodifiableMap(mapped);
+    }
+
+    private static boolean isUuidKey(String value) {
+        if (value == null) {
+            return false;
+        }
+        String compact = compactUuidKey(value);
+        if (compact.length() != 32) {
+            return false;
+        }
+        for (int i = 0; i < compact.length(); i++) {
+            char c = compact.charAt(i);
+            boolean hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+            if (!hex) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String resolveNameForUuid(String uuidCompact) {
+        if (uuidCompact == null || uuidCompact.length() != 32) {
+            return null;
+        }
+        String key = uuidCompact.toLowerCase(Locale.ROOT);
+        String cached = UUID_NAME_CACHE.get(key);
+        if (cached != null && !cached.isEmpty()) {
+            return cached;
+        }
+
+        HttpURLConnection connection = null;
+        try {
+            URL url = new URL(MOJANG_SESSION_PROFILE_BASE + key);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setInstanceFollowRedirects(false);
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(3000);
+            connection.setReadTimeout(3000);
+            connection.setRequestProperty("Accept", "application/json");
+
+            int status = connection.getResponseCode();
+            if (status < 200 || status >= 300) {
+                return null;
+            }
+
+            try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                JsonObject object = gson.fromJson(reader, JsonObject.class);
+                if (object == null || !object.has("name")) {
+                    return null;
+                }
+                String name = object.get("name").getAsString();
+                if (name == null || name.trim().isEmpty()) {
+                    return null;
+                }
+                String trimmed = name.trim();
+                UUID_NAME_CACHE.put(key, trimmed);
+                return trimmed;
+            }
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
     }
 
     private void loadFromDiskCacheIfPresent() {
