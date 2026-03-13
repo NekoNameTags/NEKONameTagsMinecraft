@@ -21,17 +21,21 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 final class NekoNameTagsNeoForgeClient {
-    private static final long RELOAD_INTERVAL_MS = 30_000L;
-    private static final double BASE_OFFSET = 0.18D;
-    private static final double VANILLA_NAME_CLEARANCE = 0.08D;
+    private static final long RELOAD_INTERVAL_MS = 60_000L;
+    private static final double BASE_OFFSET = -0.55D;
+    private static final double VANILLA_NAME_CLEARANCE = -0.04D;
     private static final double SELF_LINE_GAP_BASE = 0.18D;
     private static final double SELF_LINE_GAP_EXTRA = 0.03D;
+    private static final Pattern MINECRAFT_NAME_PATTERN = Pattern.compile("[A-Za-z0-9_]{3,16}");
     private static volatile boolean started;
     private static volatile boolean enabled = true;
     private static volatile List<ParsedTagLine> selfLines = Collections.emptyList();
@@ -157,11 +161,30 @@ final class NekoNameTagsNeoForgeClient {
         long now = System.currentTimeMillis();
         Set<UUID> activePlayers = new HashSet<UUID>();
         for (Player player : mc.level.players()) {
-            UUID profileId = player.getGameProfile() != null && player.getGameProfile().getId() != null
-                ? player.getGameProfile().getId()
-                : player.getUUID();
-            String profileName = player.getGameProfile() != null ? player.getGameProfile().getName() : player.getName().getString();
-            NekoTagUser user = repository.findForPlayer(NekoTagFormat.normalizePlayerId(profileId), profileName);
+            UUID uuid = player.getUUID();
+            UUID profileId = player.getGameProfile() != null && player.getGameProfile().getId() != null ? player.getGameProfile().getId() : uuid;
+            String profileName = safeTrim(player.getScoreboardName());
+            String displayName = player.getName() == null ? null : safeTrim(player.getName().getString());
+            String uuidKey = NekoTagFormat.normalizePlayerId(profileId);
+
+            Set<String> nameCandidates = new LinkedHashSet<String>();
+            if (profileName != null) {
+                nameCandidates.add(profileName);
+            }
+            if (displayName != null) {
+                nameCandidates.add(displayName);
+            }
+            nameCandidates.addAll(extractPotentialMinecraftNames(displayName));
+
+            NekoTagUser user = repository.findForPlayer(uuidKey, null);
+            if (user == null) {
+                for (String candidate : nameCandidates) {
+                    user = repository.findForPlayer(null, candidate);
+                    if (user != null) {
+                        break;
+                    }
+                }
+            }
             if (user == null) {
                 continue;
             }
@@ -170,14 +193,13 @@ final class NekoNameTagsNeoForgeClient {
             if (isSelf && firstPerson) {
                 continue;
             }
-
-            // Never inject username via NeoForge path; keep vanilla/Essential nameplate and only add custom rows above it.
-            List<ParsedTagLine> lines = buildParsedLines(user, profileName, false);
+            String lineName = firstNonEmpty(profileName, displayName, null);
+            List<ParsedTagLine> lines = buildParsedLines(user, lineName, false);
             if (lines.isEmpty()) {
                 continue;
             }
 
-            activePlayers.add(player.getUUID());
+            activePlayers.add(uuid);
             updatePlayerHolograms(mc, player, lines, now);
             if (isSelf) {
                 selfLines = lines;
@@ -336,5 +358,41 @@ final class NekoNameTagsNeoForgeClient {
             }
         }
         playerHolograms.clear();
+    }
+
+    private static String safeTrim(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String firstNonEmpty(String a, String b, String c) {
+        if (a != null && !a.isEmpty()) {
+            return a;
+        }
+        if (b != null && !b.isEmpty()) {
+            return b;
+        }
+        if (c != null && !c.isEmpty()) {
+            return c;
+        }
+        return "";
+    }
+
+    private static Set<String> extractPotentialMinecraftNames(String text) {
+        Set<String> names = new LinkedHashSet<String>();
+        if (text == null || text.isEmpty()) {
+            return names;
+        }
+        Matcher matcher = MINECRAFT_NAME_PATTERN.matcher(text);
+        while (matcher.find()) {
+            String candidate = safeTrim(matcher.group());
+            if (candidate != null) {
+                names.add(candidate);
+            }
+        }
+        return names;
     }
 }
