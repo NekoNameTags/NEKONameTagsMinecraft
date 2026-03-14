@@ -314,7 +314,11 @@ final class NekoNameTagsFabricClient {
             return;
         }
 
-        final String username = safeTrim(mc.player.getGameProfile() == null ? null : mc.player.getGameProfile().getName());
+        final String username = firstNonEmpty(
+            safeTrim(mc.player.getNameForScoreboard()),
+            mc.player.getName() == null ? null : safeTrim(mc.player.getName().getString()),
+            null
+        );
         if (username == null || username.isEmpty()) {
             return;
         }
