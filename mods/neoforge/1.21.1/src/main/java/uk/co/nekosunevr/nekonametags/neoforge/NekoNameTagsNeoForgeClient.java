@@ -33,8 +33,8 @@ import java.util.regex.Pattern;
 
 final class NekoNameTagsNeoForgeClient {
     private static final long RELOAD_INTERVAL_MS = NekoHologramLayout.DEFAULT_REFRESH_INTERVAL_MS;
-    private static final double BASE_OFFSET = 0.18D;
-    private static final double VANILLA_NAME_CLEARANCE = 0.08D;
+    private static final double BASE_OFFSET = -0.55D;
+    private static final double VANILLA_NAME_CLEARANCE = -0.04D;
     private static final double SELF_LINE_GAP_BASE = 0.18D;
     private static final double SELF_LINE_GAP_EXTRA = 0.03D;
     private static final Pattern MINECRAFT_NAME_PATTERN = Pattern.compile("[A-Za-z0-9_]{3,16}");

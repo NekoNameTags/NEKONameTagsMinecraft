@@ -8,7 +8,7 @@ public final class NekoMinecraftWebState {
     private String minecraftUserId;
     private boolean supportUnlocked;
     private int tagLimit;
-    private List<String> automaticTags;
+    private List<NekoMinecraftAutomaticTag> automaticTags;
     private List<NekoMinecraftWebTag> tags;
     private List<NekoMinecraftWebBigTag> bigTags;
 
@@ -28,8 +28,8 @@ public final class NekoMinecraftWebState {
         return tagLimit;
     }
 
-    public List<String> getAutomaticTags() {
-        return automaticTags == null ? Collections.<String>emptyList() : automaticTags;
+    public List<NekoMinecraftAutomaticTag> getAutomaticTags() {
+        return automaticTags == null ? Collections.<NekoMinecraftAutomaticTag>emptyList() : automaticTags;
     }
 
     public List<NekoMinecraftWebTag> getTags() {
