@@ -27,7 +27,7 @@ public final class NekoNameTagsFabricUiMod implements ClientModInitializer {
                 client.player.sendMessage(Text.translatable("text.nekonametags_ui.loaded"), false);
             }
         });
-        LOGGER.info("NekoNameTags UI addon loaded. Use /nekoui to open the manager.");
+        LOGGER.info("NekoNameTags UI addon loaded as an optional remote manager. Use /nekoui to edit nametags.");
     }
 
     private static int openScreen() {

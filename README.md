@@ -83,6 +83,13 @@ UI addons follow the same versioned layout pattern as the client mods:
 
 If a version folder exists, Gradle can include and build it the same way as the main mod loaders.
 
+UI addons are optional remote-control tools only:
+- add, edit, delete, and sync nametags from the website/account API
+- manage web/account settings for remote editing
+- not required for local nametag rendering or normal in-game display
+
+The main client mod in `mods/<loader>/<mc-version>` is the part that downloads cached nametag data and renders tags above players.
+
 Release filename format stays stable and version-correct:
 - `NekoNameTags-Fabric-<mod_version>-mc<mc_version>.jar`
 - Examples:

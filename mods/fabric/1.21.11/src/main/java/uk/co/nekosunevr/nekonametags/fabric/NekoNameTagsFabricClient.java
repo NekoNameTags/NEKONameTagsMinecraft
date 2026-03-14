@@ -33,11 +33,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 final class NekoNameTagsFabricClient {
     private static final long RELOAD_INTERVAL_MS = NekoHologramLayout.DEFAULT_REFRESH_INTERVAL_MS;
+    private static final long GAME_PROFILE_REFRESH_MS = 60_000L;
     private static final double BASE_OFFSET = -1.55D;
     private static final double VANILLA_NAME_CLEARANCE = -0.10D;
     private static final double SELF_LINE_GAP_BASE = 0.18D;
@@ -51,10 +53,9 @@ final class NekoNameTagsFabricClient {
     private static NekoClientSettings settings;
     private static final Map<UUID, List<ArmorStandEntity>> playerHolograms = new HashMap<UUID, List<ArmorStandEntity>>();
     private static volatile boolean essentialInstalled;
-    private static volatile List<ParsedTagLine> dynamicServerLines = Collections.emptyList();
     private static volatile String dynamicServerHost = "";
-    private static volatile long nextDynamicServerRefreshAt = 0L;
-    private static volatile boolean dynamicServerRefreshInFlight;
+    private static final Map<String, CachedServerStats> serverStatsCache = new ConcurrentHashMap<String, CachedServerStats>();
+    private static final Set<String> serverStatsRefreshInFlight = ConcurrentHashMap.newKeySet();
 
     private NekoNameTagsFabricClient() {
     }
@@ -160,7 +161,7 @@ final class NekoNameTagsFabricClient {
             return;
         }
 
-        updateDynamicServerLines(mc);
+        ServerKind serverKind = updateDynamicServerContext(mc);
 
         boolean firstPerson = mc.options.getPerspective() == Perspective.FIRST_PERSON;
         long now = System.currentTimeMillis();
@@ -200,10 +201,11 @@ final class NekoNameTagsFabricClient {
             boolean includeNameLine = false;
             String lineName = firstNonEmpty(profileName, displayName, null);
             List<ParsedTagLine> lines = NekoHologramLayout.buildParsedLines(user, lineName, includeNameLine);
-            if (isSelf && !dynamicServerLines.isEmpty()) {
-                List<ParsedTagLine> merged = new ArrayList<ParsedTagLine>(lines.size() + dynamicServerLines.size());
+            List<ParsedTagLine> serverLines = getServerStatsLines(serverKind, nameCandidates);
+            if (!serverLines.isEmpty()) {
+                List<ParsedTagLine> merged = new ArrayList<ParsedTagLine>(lines.size() + serverLines.size());
                 merged.addAll(lines);
-                merged.addAll(dynamicServerLines);
+                merged.addAll(serverLines);
                 lines = merged;
             }
             if (lines.isEmpty()) {
@@ -287,57 +289,78 @@ final class NekoNameTagsFabricClient {
         return selfLines;
     }
 
-    private static void updateDynamicServerLines(MinecraftClient mc) {
+    private static ServerKind updateDynamicServerContext(MinecraftClient mc) {
         String host = currentServerHost(mc);
-        if (host.isEmpty() || mc.player == null || !settings.hasWebApiKey()) {
+        if (host.isEmpty() || mc.player == null) {
             dynamicServerHost = "";
-            dynamicServerLines = Collections.emptyList();
-            nextDynamicServerRefreshAt = 0L;
-            return;
+            serverStatsCache.clear();
+            serverStatsRefreshInFlight.clear();
+            return ServerKind.NONE;
         }
 
         ServerKind serverKind = detectServerKind(host);
         if (serverKind == ServerKind.NONE) {
             dynamicServerHost = "";
-            dynamicServerLines = Collections.emptyList();
-            nextDynamicServerRefreshAt = 0L;
-            return;
+            serverStatsCache.clear();
+            serverStatsRefreshInFlight.clear();
+            return ServerKind.NONE;
+        }
+
+        if (!host.equals(dynamicServerHost)) {
+            dynamicServerHost = host;
+            serverStatsCache.clear();
+            serverStatsRefreshInFlight.clear();
+        }
+        return serverKind;
+    }
+
+    private static List<ParsedTagLine> getServerStatsLines(ServerKind serverKind, Set<String> nameCandidates) {
+        if (serverKind == ServerKind.NONE || nameCandidates == null || nameCandidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        final String username = selectMinecraftUsername(nameCandidates);
+        if (username == null || username.isEmpty()) {
+            return Collections.emptyList();
         }
 
         long now = System.currentTimeMillis();
-        if (!host.equals(dynamicServerHost)) {
-            dynamicServerHost = host;
-            dynamicServerLines = Collections.emptyList();
-            nextDynamicServerRefreshAt = 0L;
-        }
-        if (dynamicServerRefreshInFlight || now < nextDynamicServerRefreshAt) {
-            return;
+        String cacheKey = serverKind.name() + ":" + username.toLowerCase();
+        CachedServerStats cached = serverStatsCache.get(cacheKey);
+        if (cached != null && cached.expiresAt > now) {
+            return cached.lines;
         }
 
-        final String username = firstNonEmpty(
-            safeTrim(mc.player.getNameForScoreboard()),
-            mc.player.getName() == null ? null : safeTrim(mc.player.getName().getString()),
-            null
-        );
-        if (username == null || username.isEmpty()) {
-            return;
+        if (serverStatsRefreshInFlight.add(cacheKey)) {
+            requestServerStatsRefresh(serverKind, username, cacheKey);
         }
 
-        dynamicServerRefreshInFlight = true;
-        nextDynamicServerRefreshAt = now + RELOAD_INTERVAL_MS;
+        return cached == null ? Collections.<ParsedTagLine>emptyList() : cached.lines;
+    }
+
+    private static void requestServerStatsRefresh(ServerKind serverKind, String username, String cacheKey) {
         new Thread(() -> {
             try {
                 NekoGameProfileClient client = new NekoGameProfileClient(settings.getWebApiBaseUrl(), settings.getWebApiKey());
                 List<ParsedTagLine> fetchedLines = serverKind == ServerKind.WYNNCRAFT
                     ? buildWynncraftLines(client.fetchWynncraftProfile(username))
                     : buildHypixelLines(client.fetchHypixelProfile(username));
-                dynamicServerLines = fetchedLines;
+                serverStatsCache.put(cacheKey, new CachedServerStats(fetchedLines, System.currentTimeMillis() + GAME_PROFILE_REFRESH_MS));
             } catch (Exception ignored) {
-                dynamicServerLines = Collections.emptyList();
+                serverStatsCache.put(cacheKey, new CachedServerStats(Collections.<ParsedTagLine>emptyList(), System.currentTimeMillis() + GAME_PROFILE_REFRESH_MS));
             } finally {
-                dynamicServerRefreshInFlight = false;
+                serverStatsRefreshInFlight.remove(cacheKey);
             }
         }, "NekoNameTags-Fabric-GameStats").start();
+    }
+
+    private static String selectMinecraftUsername(Set<String> nameCandidates) {
+        for (String candidate : nameCandidates) {
+            if (candidate != null && MINECRAFT_NAME_PATTERN.matcher(candidate).matches()) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private static String currentServerHost(MinecraftClient mc) {
@@ -601,5 +624,15 @@ final class NekoNameTagsFabricClient {
         NONE,
         WYNNCRAFT,
         HYPIXEL
+    }
+
+    private static final class CachedServerStats {
+        private final List<ParsedTagLine> lines;
+        private final long expiresAt;
+
+        private CachedServerStats(List<ParsedTagLine> lines, long expiresAt) {
+            this.lines = lines == null ? Collections.<ParsedTagLine>emptyList() : Collections.unmodifiableList(new ArrayList<ParsedTagLine>(lines));
+            this.expiresAt = expiresAt;
+        }
     }
 }
