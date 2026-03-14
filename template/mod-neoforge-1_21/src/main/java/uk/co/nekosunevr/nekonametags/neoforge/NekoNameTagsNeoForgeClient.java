@@ -2,6 +2,7 @@ package uk.co.nekosunevr.nekonametags.neoforge;
 
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.entity.decoration.ArmorStand;
@@ -9,6 +10,7 @@ import net.minecraft.world.entity.player.Player;
 import net.neoforged.fml.ModList;
 import org.apache.logging.log4j.Logger;
 import uk.co.nekosunevr.nekonametags.core.NekoClientSettings;
+import uk.co.nekosunevr.nekonametags.core.NekoHologramLayout;
 import uk.co.nekosunevr.nekonametags.core.NekoTagFormat;
 import uk.co.nekosunevr.nekonametags.core.NekoTagRepository;
 import uk.co.nekosunevr.nekonametags.core.NekoTagUser;
@@ -27,7 +29,7 @@ import java.util.Set;
 import java.util.UUID;
 
 final class NekoNameTagsNeoForgeClient {
-    private static final long RELOAD_INTERVAL_MS = 30_000L;
+    private static final long RELOAD_INTERVAL_MS = NekoHologramLayout.DEFAULT_REFRESH_INTERVAL_MS;
     private static final double BASE_OFFSET = 0.18D;
     private static final double VANILLA_NAME_CLEARANCE = 0.08D;
     private static final double SELF_LINE_GAP_BASE = 0.18D;
@@ -172,7 +174,7 @@ final class NekoNameTagsNeoForgeClient {
             }
 
             // Never inject username via NeoForge path; keep vanilla/Essential nameplate and only add custom rows above it.
-            List<ParsedTagLine> lines = buildParsedLines(user, profileName, false);
+            List<ParsedTagLine> lines = NekoHologramLayout.buildParsedLines(user, profileName, false);
             if (lines.isEmpty()) {
                 continue;
             }
@@ -186,36 +188,6 @@ final class NekoNameTagsNeoForgeClient {
         clearStaleHolograms(activePlayers);
     }
 
-    private static List<ParsedTagLine> buildParsedLines(NekoTagUser user, String playerName, boolean includeNameLine) {
-        List<ParsedTagLine> lines = new ArrayList<ParsedTagLine>(8);
-        String[] bigLines = user.getBigPlatesText();
-        for (String raw : bigLines) {
-            ParsedTagLine big = NekoTagFormat.parse(raw);
-            if (!big.getText().isEmpty()) {
-                lines.add(big);
-            }
-        }
-
-        String[] normalLines = user.getNamePlatesText();
-        for (String raw : normalLines) {
-            ParsedTagLine normal = NekoTagFormat.parse(raw);
-            if (!normal.getText().isEmpty()) {
-                lines.add(normal);
-            }
-        }
-
-        if (lines.isEmpty()) {
-            return lines;
-        }
-
-        if (includeNameLine) {
-            String cleanName = playerName == null ? "" : playerName.trim();
-            if (!cleanName.isEmpty()) {
-                lines.add(new ParsedTagLine(cleanName, cleanName, TagEffectType.NONE, 0xFFFFFF, false, false, 16.0f));
-            }
-        }
-        return lines;
-    }
 
     private static boolean isEssentialInstalled() {
         try {
@@ -271,9 +243,7 @@ final class NekoNameTagsNeoForgeClient {
 
         while (stands.size() < lines.size()) {
             ArmorStand stand = new ArmorStand(mc.level, player.getX(), player.getY(), player.getZ());
-            stand.setInvisible(true);
-            stand.setNoGravity(true);
-            stand.setSilent(true);
+            configureHologramStand(stand);
             stand.setCustomNameVisible(true);
             mc.level.addEntity(stand);
             stands.add(stand);
@@ -285,7 +255,7 @@ final class NekoNameTagsNeoForgeClient {
             }
         }
 
-        double y = player.getY() + player.getBbHeight() + BASE_OFFSET + VANILLA_NAME_CLEARANCE;
+        double y = player.getY() + player.getBbHeight() + BASE_OFFSET + VANILLA_NAME_CLEARANCE + NekoHologramLayout.computeStackHeight(lines, SELF_LINE_GAP_BASE, SELF_LINE_GAP_EXTRA);
         for (int i = 0; i < lines.size(); i++) {
             ParsedTagLine line = lines.get(i);
             ArmorStand stand = stands.get(i);
@@ -293,15 +263,44 @@ final class NekoNameTagsNeoForgeClient {
                 continue;
             }
             if (i > 0) {
-                ParsedTagLine prev = lines.get(i - 1);
-                float prevRatio = Math.max(0.7f, Math.min(3.0f, prev.getSize() / 16.0f));
-                y -= (SELF_LINE_GAP_BASE * prevRatio) + SELF_LINE_GAP_EXTRA;
+                y -= NekoHologramLayout.computeLineGap(lines.get(i - 1), SELF_LINE_GAP_BASE, SELF_LINE_GAP_EXTRA);
             }
             stand.setPos(player.getX(), y, player.getZ());
             stand.setCustomName(buildStyledLineComponent(line, nowMs));
             stand.setCustomNameVisible(true);
         }
     }
+
+    private static void configureHologramStand(ArmorStand stand) {
+        applyMarkerData(stand);
+        stand.setInvisible(true);
+        stand.setNoBasePlate(true);
+        stand.setNoGravity(true);
+        stand.noPhysics = true;
+        stand.setSilent(true);
+    }
+
+    private static void applyMarkerData(ArmorStand stand) {
+        CompoundTag standData = new CompoundTag();
+        standData.putBoolean("Marker", true);
+        try {
+            stand.getClass().getMethod("readAdditionalSaveData", CompoundTag.class).invoke(stand, standData);
+            return;
+        } catch (ReflectiveOperationException ignored) {
+        }
+        try {
+            stand.getClass().getMethod("load", CompoundTag.class).invoke(stand, standData);
+            return;
+        } catch (ReflectiveOperationException ignored) {
+        }
+        try {
+            java.lang.reflect.Method setMarker = stand.getClass().getDeclaredMethod("setMarker", boolean.class);
+            setMarker.setAccessible(true);
+            setMarker.invoke(stand, true);
+        } catch (ReflectiveOperationException ignored) {
+        }
+    }
+
 
     private static void clearStaleHolograms(Set<UUID> activePlayers) {
         List<UUID> stalePlayers = new ArrayList<UUID>();

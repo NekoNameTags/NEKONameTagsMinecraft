@@ -9,6 +9,13 @@ Multi-loader NekoNameTags foundation for:
 
 This repository is structured so one shared core can be reused across loader-specific modules.
 
+Top-level layout:
+- `core/`: shared mod + plugin logic
+- `ui/core/`: shared UI addon logic
+- `mods/`: client mod loaders grouped by loader, then version
+- `ui/`: client UI addons grouped by loader, then version
+- `plugins/`: server plugins grouped by platform, then version
+
 ## Why this layout
 
 A single jar cannot realistically support every Minecraft version from `1.7.10` to `1.21.x` because:
@@ -18,13 +25,16 @@ A single jar cannot realistically support every Minecraft version from `1.7.10` 
 
 This repo uses a practical strategy:
 - `core`: loader-agnostic logic (API fetch, models, tag text/color helpers)
-- `plugin-paper`: Bukkit/Paper implementation
-- `plugin-sponge`: Sponge implementation scaffold
-- `mod-fabric-1_21`: Fabric 1.21.x implementation scaffold
-- `mod-fabric-1_21_11`: Fabric 1.21.10-1.21.11 implementation scaffold
-- `mod-forge-1_21`: Forge 1.21.x implementation scaffold
-- `mod-neoforge-1_21`: NeoForge 1.21.x implementation scaffold
-- `mod-labymod`: standalone LabyMod addon project (LabyMod 4 template based)
+- `ui/core`: shared UI addon logic (WEB settings, Minecraft tag management state)
+- `mods/fabric/<mc-version>`: Fabric mod modules
+- `mods/forge/<mc-version>`: Forge mod modules
+- `mods/neoforge/<mc-version>`: NeoForge mod modules
+- `mods/labymod`: standalone LabyMod addon project
+- `ui/fabric/<mc-version>`: Fabric UI addon modules
+- `ui/forge/<mc-version>`: Forge UI addon modules
+- `ui/neoforge/<mc-version>`: NeoForge UI addon modules
+- `plugins/paper/<mc-version>`: Bukkit/Paper plugin modules
+- `plugins/sponge/<mc-version>`: Sponge plugin modules
 - `versions/`: version profile metadata and orchestration notes
 
 ## Quick start
@@ -33,11 +43,14 @@ This repo uses a practical strategy:
 2. Set version in one place: `gradle.properties` -> `mod_version=...`
 3. Configure API URL in `gradle.properties` (`nekonametags_api_url`).
 4. Build target modules:
-   - `./gradlew :plugin-paper:build`
-   - `./gradlew :plugin-sponge:build`
-   - `./gradlew :mod-fabric-1_21:build`
-   - `./gradlew :mod-forge-1_21:build`
-   - `./gradlew :mod-neoforge-1_21:build`
+   - `./gradlew :paper:1_21_11:build`
+   - `./gradlew :sponge:1_21_11:build`
+   - `./gradlew :fabric:1_21_11:build`
+   - `./gradlew :forge:1_21_11:build`
+   - `./gradlew :neoforge:1_21_11:build`
+   - `./gradlew :fabric-ui:1_21_11:build`
+   - `./gradlew :forge-ui:1_21_11:build`
+   - `./gradlew :neoforge-ui:1_21_11:build`
 
 ## GitHub release automation
 
@@ -60,6 +73,15 @@ Note: fill loader coordinates in `versions/minecraft-1.21x-builds.json` for each
 - `1.21.10` and `1.21.11` -> `mod-fabric-1_21_11`
 
 This split is intentional for API/mapping compatibility.
+
+### UI module routing
+
+UI addons follow the same versioned layout pattern as the client mods:
+- `ui/fabric/<mc-version>`
+- `ui/forge/<mc-version>`
+- `ui/neoforge/<mc-version>`
+
+If a version folder exists, Gradle can include and build it the same way as the main mod loaders.
 
 Release filename format stays stable and version-correct:
 - `NekoNameTags-Fabric-<mod_version>-mc<mc_version>.jar`

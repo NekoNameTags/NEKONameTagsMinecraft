@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "nekonametags_ui",
+  "version": "${version}",
+  "name": "NekoNameTags UI",
+  "description": "Separate Minecraft manager UI addon for NekoNameTags on Fabric",
+  "authors": [
+    "NekoSuneVR"
+  ],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "uk.co.nekosunevr.nekonametags.fabricui.NekoNameTagsFabricUiMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.11",
+    "fabric-api": "*",
+    "nekonametags": "*"
+  }
+}

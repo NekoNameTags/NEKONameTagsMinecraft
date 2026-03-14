@@ -1,0 +1,19 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+
+[[mods]]
+modId = "nekonametags_ui"
+version = "${version}"
+displayName = "NekoNameTags UI"
+authors = "NekoSuneVR"
+description = '''
+Separate NekoNameTags UI addon for NeoForge.
+'''
+
+[[dependencies.nekonametags_ui]]
+modId = "nekonametags"
+type = "required"
+versionRange = "[0,)"
+ordering = "AFTER"
+side = "CLIENT"
