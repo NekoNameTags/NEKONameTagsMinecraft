@@ -30,6 +30,14 @@ public final class NekoGameProfileClient {
         return request("hypixel", username);
     }
 
+    public NekoTagUser fetchWynncraftNametags(String username) throws IOException {
+        return requestNametags("wynncraft", username);
+    }
+
+    public NekoTagUser fetchHypixelNametags(String username) throws IOException {
+        return requestNametags("hypixel", username);
+    }
+
     private JsonObject request(String service, String username) throws IOException {
         String encodedUsername = URLEncoder.encode(username == null ? "" : username.trim(), StandardCharsets.UTF_8.name());
         HttpURLConnection connection = (HttpURLConnection) new URL(baseUrl + "/v5/games/api/" + service + "/profile/" + encodedUsername).openConnection();
@@ -52,6 +60,30 @@ public final class NekoGameProfileClient {
             return new JsonObject();
         }
         return gson.fromJson(responseBody, JsonObject.class);
+    }
+
+    private NekoTagUser requestNametags(String service, String username) throws IOException {
+        String encodedUsername = URLEncoder.encode(username == null ? "" : username.trim(), StandardCharsets.UTF_8.name());
+        HttpURLConnection connection = (HttpURLConnection) new URL(baseUrl + "/v5/games/api/" + service + "/nametags/" + encodedUsername).openConnection();
+        connection.setInstanceFollowRedirects(false);
+        connection.setRequestMethod("GET");
+        connection.setConnectTimeout(7000);
+        connection.setReadTimeout(7000);
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("nekosunevr-api-key", apiKey);
+
+        int status = connection.getResponseCode();
+        InputStream stream = status >= 200 && status < 300 ? connection.getInputStream() : connection.getErrorStream();
+        String responseBody = readBody(stream);
+        connection.disconnect();
+
+        if (status < 200 || status >= 300) {
+            throw new IOException(extractErrorMessage(responseBody, status));
+        }
+        if (responseBody.isEmpty()) {
+            return null;
+        }
+        return gson.fromJson(responseBody, NekoTagUser.class);
     }
 
     private String readBody(InputStream stream) throws IOException {

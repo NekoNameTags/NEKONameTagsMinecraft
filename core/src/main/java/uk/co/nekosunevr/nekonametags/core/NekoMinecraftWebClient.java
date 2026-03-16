@@ -71,6 +71,18 @@ public final class NekoMinecraftWebClient {
         request("POST", "/v5/account/minecraft/big-tags/" + id + "/delete", "{}", Void.class);
     }
 
+    public void syncPresence(String username, String uuid, String serverHost, String serverLabel, boolean online) throws IOException {
+        String payload = new StringBuilder()
+            .append("{\"username\":").append(json(username))
+            .append(",\"uuid\":").append(json(uuid))
+            .append(",\"serverHost\":").append(json(serverHost))
+            .append(",\"serverLabel\":").append(json(serverLabel))
+            .append(",\"online\":").append(online)
+            .append('}')
+            .toString();
+        request("POST", "/v5/account/minecraft/presence", payload, Void.class);
+    }
+
     private <T> T request(String method, String path, String body, Class<T> responseType) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) new URL(baseUrl + path).openConnection();
         connection.setInstanceFollowRedirects(false);

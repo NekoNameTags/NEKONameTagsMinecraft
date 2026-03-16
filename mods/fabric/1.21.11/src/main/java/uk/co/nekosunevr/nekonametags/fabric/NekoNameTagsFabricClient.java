@@ -4,13 +4,13 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.client.network.ServerInfo;
+import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
 import net.minecraft.text.TextColor;
-import com.google.gson.JsonObject;
 import org.slf4j.Logger;
 import uk.co.nekosunevr.nekonametags.core.NekoClientSettings;
 import uk.co.nekosunevr.nekonametags.core.NekoGameProfileClient;
@@ -18,6 +18,7 @@ import uk.co.nekosunevr.nekonametags.core.NekoHologramLayout;
 import uk.co.nekosunevr.nekonametags.core.NekoTagFormat;
 import uk.co.nekosunevr.nekonametags.core.NekoTagRepository;
 import uk.co.nekosunevr.nekonametags.core.NekoTagUser;
+import uk.co.nekosunevr.nekonametags.core.NekoMinecraftWebClient;
 import uk.co.nekosunevr.nekonametags.core.ParsedTagLine;
 import uk.co.nekosunevr.nekonametags.core.TagEffectType;
 import uk.co.nekosunevr.nekonametags.core.TagEffects;
@@ -37,13 +38,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-final class NekoNameTagsFabricClient {
+public final class NekoNameTagsFabricClient {
     private static final long RELOAD_INTERVAL_MS = NekoHologramLayout.DEFAULT_REFRESH_INTERVAL_MS;
     private static final long GAME_PROFILE_REFRESH_MS = 60_000L;
     private static final double BASE_OFFSET = -1.55D;
     private static final double VANILLA_NAME_CLEARANCE = -0.10D;
+    private static final double HYPIXEL_NAMEPLATE_EXTRA_CLEARANCE = 0.72D;
     private static final double SELF_LINE_GAP_BASE = 0.18D;
     private static final double SELF_LINE_GAP_EXTRA = 0.03D;
+    private static final long SERVER_CONTEXT_GRACE_MS = 15_000L;
     private static final Pattern MINECRAFT_NAME_PATTERN = Pattern.compile("[A-Za-z0-9_]{3,16}");
     private static volatile boolean started;
     private static volatile boolean enabled = true;
@@ -52,11 +55,16 @@ final class NekoNameTagsFabricClient {
     private static volatile boolean reloadRequested;
     private static NekoClientSettings settings;
     private static final Map<UUID, List<ArmorStandEntity>> playerHolograms = new HashMap<UUID, List<ArmorStandEntity>>();
+    private static volatile ClientWorld lastRenderedWorld;
     private static volatile boolean essentialInstalled;
     private static volatile String dynamicServerHost = "";
+    private static volatile long dynamicServerHostSeenAt;
+    private static volatile long lastPresenceSyncAt;
+    private static volatile boolean lastPresenceOnline;
+    private static volatile String lastPresenceHost = "";
     private static final Map<String, CachedServerStats> serverStatsCache = new ConcurrentHashMap<String, CachedServerStats>();
     private static final Set<String> serverStatsRefreshInFlight = ConcurrentHashMap.newKeySet();
-
+    private static final long PRESENCE_SYNC_INTERVAL_MS = 30_000L;
     private NekoNameTagsFabricClient() {
     }
 
@@ -98,6 +106,7 @@ final class NekoNameTagsFabricClient {
                 checkForUpdatesAndNotify(logger);
             }
             mc.execute(() -> applyTags(mc, repository));
+            syncPresenceIfNeeded(mc);
 
             try {
                 Thread.sleep(50L);
@@ -106,6 +115,53 @@ final class NekoNameTagsFabricClient {
                 return;
             }
         }
+    }
+
+    private static void syncPresenceIfNeeded(MinecraftClient mc) {
+        if (settings == null || !settings.hasWebApiKey()) {
+            return;
+        }
+
+        String username = mc.player == null ? "" : firstNonEmpty(
+            safeTrim(mc.player.getNameForScoreboard()),
+            mc.player.getName() == null ? null : safeTrim(mc.player.getName().getString()),
+            ""
+        );
+        String uuid = mc.player == null ? "" : NekoTagFormat.normalizePlayerId(mc.player.getUuid());
+        String serverHost = currentServerHost(mc);
+        boolean online = mc.world != null && mc.player != null && !serverHost.isEmpty();
+        String serverLabel = detectPresenceServerLabel(serverHost);
+        long now = System.currentTimeMillis();
+        boolean shouldSync = online != lastPresenceOnline
+            || !serverHost.equals(lastPresenceHost)
+            || (now - lastPresenceSyncAt) >= PRESENCE_SYNC_INTERVAL_MS;
+
+        if (!shouldSync) {
+            return;
+        }
+
+        lastPresenceSyncAt = now;
+        lastPresenceOnline = online;
+        lastPresenceHost = serverHost;
+
+        new Thread(() -> {
+            try {
+                NekoMinecraftWebClient client = new NekoMinecraftWebClient(settings.getWebApiBaseUrl(), settings.getWebApiKey());
+                client.syncPresence(username, uuid, serverHost, serverLabel, online);
+            } catch (Exception ignored) {
+            }
+        }, "NekoNameTags-Fabric-Presence").start();
+    }
+
+    private static String detectPresenceServerLabel(String serverHost) {
+        ServerKind serverKind = detectServerKind(serverHost);
+        if (serverKind == ServerKind.WYNNCRAFT) {
+            return "Wynncraft";
+        }
+        if (serverKind == ServerKind.HYPIXEL) {
+            return "Hypixel";
+        }
+        return serverHost == null ? "" : serverHost;
     }
 
     private static int reloadNow(NekoTagRepository repository, Logger logger) {
@@ -151,8 +207,14 @@ final class NekoNameTagsFabricClient {
 
     private static void applyTags(MinecraftClient mc, NekoTagRepository repository) {
         if (mc.world == null || mc.player == null) {
+            lastRenderedWorld = null;
             clearAllHolograms();
             return;
+        }
+
+        if (mc.world != lastRenderedWorld) {
+            lastRenderedWorld = mc.world;
+            clearAllHolograms();
         }
 
         selfLines = Collections.emptyList();
@@ -190,17 +252,15 @@ final class NekoNameTagsFabricClient {
                     }
                 }
             }
-            if (user == null) {
-                continue;
-            }
-
             boolean isSelf = mc.player != null && player.getUuid().equals(mc.player.getUuid());
             if (isSelf && firstPerson) {
                 continue;
             }
             boolean includeNameLine = false;
             String lineName = firstNonEmpty(profileName, displayName, null);
-            List<ParsedTagLine> lines = NekoHologramLayout.buildParsedLines(user, lineName, includeNameLine);
+            List<ParsedTagLine> lines = user == null
+                ? new ArrayList<ParsedTagLine>()
+                : NekoHologramLayout.buildParsedLines(user, lineName, includeNameLine);
             List<ParsedTagLine> serverLines = getServerStatsLines(serverKind, nameCandidates);
             if (!serverLines.isEmpty()) {
                 List<ParsedTagLine> merged = new ArrayList<ParsedTagLine>(lines.size() + serverLines.size());
@@ -213,7 +273,7 @@ final class NekoNameTagsFabricClient {
             }
 
             activePlayers.add(uuid);
-            updatePlayerHolograms(mc, player, lines, now);
+            updatePlayerHolograms(mc, player, lines, now, serverKind);
             if (isSelf) {
                 selfLines = lines;
             }
@@ -290,8 +350,12 @@ final class NekoNameTagsFabricClient {
     }
 
     private static ServerKind updateDynamicServerContext(MinecraftClient mc) {
+        long now = System.currentTimeMillis();
         String host = currentServerHost(mc);
         if (host.isEmpty() || mc.player == null) {
+            if (!dynamicServerHost.isEmpty() && (now - dynamicServerHostSeenAt) <= SERVER_CONTEXT_GRACE_MS) {
+                return detectServerKind(dynamicServerHost);
+            }
             dynamicServerHost = "";
             serverStatsCache.clear();
             serverStatsRefreshInFlight.clear();
@@ -300,16 +364,23 @@ final class NekoNameTagsFabricClient {
 
         ServerKind serverKind = detectServerKind(host);
         if (serverKind == ServerKind.NONE) {
+            if (!dynamicServerHost.isEmpty() && (now - dynamicServerHostSeenAt) <= SERVER_CONTEXT_GRACE_MS) {
+                return detectServerKind(dynamicServerHost);
+            }
             dynamicServerHost = "";
             serverStatsCache.clear();
             serverStatsRefreshInFlight.clear();
             return ServerKind.NONE;
         }
 
+        dynamicServerHostSeenAt = now;
         if (!host.equals(dynamicServerHost)) {
+            ServerKind previousKind = detectServerKind(dynamicServerHost);
             dynamicServerHost = host;
-            serverStatsCache.clear();
-            serverStatsRefreshInFlight.clear();
+            if (previousKind != serverKind) {
+                serverStatsCache.clear();
+                serverStatsRefreshInFlight.clear();
+            }
         }
         return serverKind;
     }
@@ -342,9 +413,12 @@ final class NekoNameTagsFabricClient {
         new Thread(() -> {
             try {
                 NekoGameProfileClient client = new NekoGameProfileClient(settings.getWebApiBaseUrl(), settings.getWebApiKey());
-                List<ParsedTagLine> fetchedLines = serverKind == ServerKind.WYNNCRAFT
-                    ? buildWynncraftLines(client.fetchWynncraftProfile(username))
-                    : buildHypixelLines(client.fetchHypixelProfile(username));
+                NekoTagUser serverUser = serverKind == ServerKind.WYNNCRAFT
+                    ? client.fetchWynncraftNametags(username)
+                    : client.fetchHypixelNametags(username);
+                List<ParsedTagLine> fetchedLines = serverUser == null
+                    ? Collections.<ParsedTagLine>emptyList()
+                    : NekoHologramLayout.buildParsedLines(serverUser, username, false);
                 serverStatsCache.put(cacheKey, new CachedServerStats(fetchedLines, System.currentTimeMillis() + GAME_PROFILE_REFRESH_MS));
             } catch (Exception ignored) {
                 serverStatsCache.put(cacheKey, new CachedServerStats(Collections.<ParsedTagLine>emptyList(), System.currentTimeMillis() + GAME_PROFILE_REFRESH_MS));
@@ -389,73 +463,7 @@ final class NekoNameTagsFabricClient {
         return ServerKind.NONE;
     }
 
-    private static List<ParsedTagLine> buildWynncraftLines(JsonObject payload) {
-        List<ParsedTagLine> lines = new ArrayList<ParsedTagLine>(2);
-        String supportRank = getString(payload, "supportRank");
-        String rank = getString(payload, "rank");
-        JsonObject global = getObject(payload, "global");
-        String totalLevel = getNumberString(global, "totalLevel");
-        String completedQuests = getNumberString(global, "completedQuests");
-        String playtime = getNumberString(payload, "playtime");
-
-        lines.add(makeInfoLine("Wynn " + firstNonEmpty(capitalize(supportRank), rank, "Player") + " | Total Lv " + firstNonEmpty(totalLevel, "0", null), 0x5BE7D7));
-        lines.add(makeInfoLine("Quests " + firstNonEmpty(completedQuests, "0", null) + " | Playtime " + firstNonEmpty(playtime, "0", null) + "h", 0xFFD36E));
-        return lines;
-    }
-
-    private static List<ParsedTagLine> buildHypixelLines(JsonObject payload) {
-        List<ParsedTagLine> lines = new ArrayList<ParsedTagLine>(2);
-        String rank = getString(payload, "rank");
-        String level = getNumberString(payload, "level");
-        String karma = getNumberString(payload, "karma");
-        String yearsJoined = getNumberString(payload, "YearsJoined");
-
-        lines.add(makeInfoLine("Hypixel " + firstNonEmpty(rank, "Player", null) + " | Level " + firstNonEmpty(level, "0", null), 0x59C3FF));
-        lines.add(makeInfoLine("Karma " + firstNonEmpty(karma, "0", null) + " | Years " + firstNonEmpty(yearsJoined, "0", null), 0xFFD36E));
-        return lines;
-    }
-
-    private static ParsedTagLine makeInfoLine(String text, int colorRgb) {
-        return new ParsedTagLine(text, text, TagEffectType.NONE, colorRgb, false, false, 16.0f);
-    }
-
-    private static JsonObject getObject(JsonObject object, String key) {
-        if (object == null || key == null || !object.has(key) || !object.get(key).isJsonObject()) {
-            return null;
-        }
-        return object.getAsJsonObject(key);
-    }
-
-    private static String getString(JsonObject object, String key) {
-        if (object == null || key == null || !object.has(key) || object.get(key).isJsonNull()) {
-            return "";
-        }
-        try {
-            return safeTrim(object.get(key).getAsString());
-        } catch (Exception ignored) {
-            return "";
-        }
-    }
-
-    private static String getNumberString(JsonObject object, String key) {
-        if (object == null || key == null || !object.has(key) || object.get(key).isJsonNull()) {
-            return "";
-        }
-        try {
-            return object.get(key).getAsString();
-        } catch (Exception ignored) {
-            return "";
-        }
-    }
-
-    private static String capitalize(String value) {
-        if (value == null || value.isEmpty()) {
-            return "";
-        }
-        return Character.toUpperCase(value.charAt(0)) + value.substring(1);
-    }
-
-    private static void updatePlayerHolograms(MinecraftClient mc, AbstractClientPlayerEntity player, List<ParsedTagLine> lines, long nowMs) {
+    private static void updatePlayerHolograms(MinecraftClient mc, AbstractClientPlayerEntity player, List<ParsedTagLine> lines, long nowMs, ServerKind serverKind) {
         if (mc.world == null || player == null || lines == null || lines.isEmpty()) {
             return;
         }
@@ -481,7 +489,11 @@ final class NekoNameTagsFabricClient {
             }
         }
 
-        double y = player.getY() + player.getHeight() + BASE_OFFSET + VANILLA_NAME_CLEARANCE + NekoHologramLayout.computeStackHeight(lines, SELF_LINE_GAP_BASE, SELF_LINE_GAP_EXTRA);
+        double y = player.getY()
+            + player.getHeight()
+            + BASE_OFFSET
+            + computeVanillaNameClearance(serverKind)
+            + NekoHologramLayout.computeStackHeight(lines, SELF_LINE_GAP_BASE, SELF_LINE_GAP_EXTRA);
         for (int i = 0; i < lines.size(); i++) {
             ParsedTagLine line = lines.get(i);
             ArmorStandEntity stand = stands.get(i);
@@ -495,6 +507,13 @@ final class NekoNameTagsFabricClient {
             stand.setCustomName(buildStyledLineText(line, nowMs));
             stand.setCustomNameVisible(true);
         }
+    }
+
+    private static double computeVanillaNameClearance(ServerKind serverKind) {
+        if (serverKind == ServerKind.HYPIXEL) {
+            return VANILLA_NAME_CLEARANCE + HYPIXEL_NAMEPLATE_EXTRA_CLEARANCE;
+        }
+        return VANILLA_NAME_CLEARANCE;
     }
 
     private static void configureHologramStand(ArmorStandEntity stand) {
@@ -635,4 +654,5 @@ final class NekoNameTagsFabricClient {
             this.expiresAt = expiresAt;
         }
     }
+
 }
