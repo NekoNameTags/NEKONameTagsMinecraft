@@ -33,6 +33,83 @@ function Test-UsableMatrixValue {
     return $true
 }
 
+function Test-LegacyForgeModuleCompatible {
+    param(
+        [Parameter(Mandatory = $true)][string]$ProfileName,
+        [Parameter(Mandatory = $true)][string]$LoaderName,
+        [Parameter(Mandatory = $true)][string]$ModuleDir
+    )
+
+    if ($LoaderName -ne "forge") {
+        return $true
+    }
+    if ($ProfileName -ne "legacy_1_8_to_1_12") {
+        return $true
+    }
+
+    $buildKts = Join-Path $ModuleDir "build.gradle.kts"
+    $buildGroovy = Join-Path $ModuleDir "build.gradle"
+    if (Test-Path $buildGroovy) {
+        return $true
+    }
+    if (Test-Path $buildKts) {
+        $raw = Get-Content $buildKts -Raw
+        if ($raw -match 'id\("net\.minecraftforge\.gradle"\)\s+version\s+"6\.') {
+            return $false
+        }
+        return $true
+    }
+
+    return $false
+}
+
+function Get-RootModVersion {
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+
+    $gradlePropsPath = Join-Path $RepoRoot "gradle.properties"
+    if (-not (Test-Path $gradlePropsPath)) {
+        return "0.1.10"
+    }
+
+    $line = Get-Content $gradlePropsPath | Where-Object { $_ -match '^mod_version=' } | Select-Object -First 1
+    if (-not $line) {
+        return "0.1.10"
+    }
+    return $line.Split('=')[1].Trim()
+}
+
+function Invoke-LegacyStandaloneForgeBuild {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$ModuleDir,
+        [Parameter(Mandatory = $true)][string]$MinecraftVersion,
+        [Parameter(Mandatory = $true)][string[]]$Props,
+        [Parameter(Mandatory = $true)][bool]$IsWindowsHost
+    )
+
+    $modVersion = Get-RootModVersion -RepoRoot $RepoRoot
+    $args = @(
+        "--no-daemon"
+        "-c", "settings.gradle"
+        "-b", "build.gradle"
+        "build"
+        "-Pmod_version=$modVersion"
+        "-Pminecraft_version=$MinecraftVersion"
+    ) + $Props
+
+    Push-Location $ModuleDir
+    try {
+        if ($IsWindowsHost) {
+            & ..\..\..\gradlew.bat @args
+        } else {
+            & ../../../gradlew @args
+        }
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 function Read-GradleDistributionUrlFromMatrix {
     param(
         [Parameter(Mandatory = $true)][string]$MatrixPath,
@@ -221,6 +298,10 @@ try {
                 Write-Host "Skipping loader '$l' for ${mc}: module missing ($moduleName)" -ForegroundColor Yellow
                 continue
             }
+            if (-not (Test-LegacyForgeModuleCompatible -ProfileName $Profile -LoaderName $l -ModuleDir $moduleDir)) {
+        Write-Host "Skipping loader '$l' for ${mc}: profile '$Profile' is incompatible with modern ForgeGradle scaffold in $moduleName" -ForegroundColor Yellow
+                continue
+            }
 
             $missingFields = @()
             foreach ($field in $requiredFieldsByLoader[$l]) {
@@ -237,6 +318,7 @@ try {
             $buildTargets += [pscustomobject]@{
                 loader = $l
                 module = $moduleName
+                moduleDir = $moduleDir
             }
         }
 
@@ -298,7 +380,15 @@ try {
             }
             Write-Host "Building Minecraft $mc ($($target.loader)) with task: $moduleTask"
 
-            if ($isWindowsHost) {
+            $useLegacyStandaloneForge = (
+                $Profile -eq "legacy_1_8_to_1_12" -and
+                $target.loader -eq "forge" -and
+                (Test-Path (Join-Path $target.moduleDir "build.gradle"))
+            )
+
+            if ($useLegacyStandaloneForge) {
+                Invoke-LegacyStandaloneForgeBuild -RepoRoot $repoRoot -ModuleDir $target.moduleDir -MinecraftVersion $mc -Props $props -IsWindowsHost $isWindowsHost
+            } elseif ($isWindowsHost) {
                 & .\gradlew.bat --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" "-Pnnt_minecraft_version=$mc" @props
             } else {
                 & ./gradlew --no-daemon :core:build $moduleTask "-Pnnt_target_loader=$($target.loader)" "-Pnnt_minecraft_version=$mc" @props
@@ -332,7 +422,7 @@ try {
                 continue
             }
 
-            $moduleLibs = Join-Path $repoRoot "$($target.module)/build/libs"
+            $moduleLibs = Join-Path $target.moduleDir "build/libs"
             $jarCandidates = Get-ChildItem -Path $moduleLibs -Filter *.jar -ErrorAction SilentlyContinue |
                 Where-Object {
                     $_.Name -notlike "*-sources.jar" -and

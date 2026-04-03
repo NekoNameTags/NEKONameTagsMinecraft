@@ -1,0 +1,15 @@
+[
+  {
+    ""modid"": ""nekonametags"",
+    ""name"": ""NekoNameTags"",
+    ""description"": ""NekoNameTags Forge 1.11.2 module."",
+    ""version"": ""${version}"",
+    ""mcversion"": ""${mcversion}"",
+    ""url"": ""https://github.com/NekoSuneVR/NEKONameTagsMinecraft"",
+    ""authorList"": [""NekoSuneVR""],
+    ""credits"": """",
+    ""logoFile"": """",
+    ""screenshots"": [],
+    ""dependencies"": []
+  }
+]

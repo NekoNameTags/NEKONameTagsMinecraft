@@ -33,7 +33,7 @@ profiles:
 
   legacy_1_8_to_1_12:
     java: 8
-    gradle_distribution_url: "https://services.gradle.org/distributions/gradle-6.9.4-bin.zip"
+    gradle_distribution_url: "https://services.gradle.org/distributions/gradle-4.10.3-bin.zip"
     modules:
       - legacy-forge-1_12_2
       - legacy-plugin-1_8_8
@@ -42,8 +42,8 @@ profiles:
       - bukkit-1.8.8..1.12.2
 
   mid_1_13_to_1_16:
-    java: 8
-    gradle_distribution_url: "https://services.gradle.org/distributions/gradle-7.6.4-bin.zip"
+    java: 21
+    gradle_distribution_url: "https://services.gradle.org/distributions/gradle-8.14.3-bin.zip"
     modules:
       - plugin-paper-1_16
       - mod-fabric-1_16

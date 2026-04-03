@@ -26,7 +26,11 @@ tasks.jar {
 }
 
 minecraft {
-    mappings("official", property("minecraft_version").toString())
+    if (property("minecraft_version").toString() == "1.13.2") {
+        mappings("snapshot", "20180921-1.13")
+    } else {
+        mappings("official", property("minecraft_version").toString())
+    }
     copyIdeResources.set(true)
 }
 

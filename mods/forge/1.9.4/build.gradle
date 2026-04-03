@@ -1,0 +1,56 @@
+buildscript {
+    repositories {
+        maven { url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.2-SNAPSHOT'
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle.forge'
+apply plugin: 'java'
+
+version = project.findProperty('mod_version') ?: '0.1.10'
+group = 'uk.co.nekosunevr.nekonametags'
+archivesBaseName = 'NekoNameTags-Forge'
+
+sourceCompatibility = targetCompatibility = JavaVersion.VERSION_1_8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile 'com.google.code.gson:gson:2.10.1'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java', '../../../core/src/main/java']
+        }
+        resources {
+            srcDirs = ['src/main/resources']
+            exclude 'META-INF/mods.toml'
+        }
+    }
+}
+
+minecraft {
+    version = project.property('forge_version')
+    runDir = 'run'
+    mappings = 'snapshot_20160518'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'mcversion', project.property('minecraft_version')
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': project.property('minecraft_version')
+    }
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
+    }
+}
