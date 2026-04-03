@@ -23,9 +23,7 @@ java {
     withSourcesJar()
 }
 
-base {
-    archivesName.set("NekoNameTags-Fabric-UI")
-}
+project.setProperty("archivesBaseName", "NekoNameTags-Fabric-UI")
 
 tasks.jar {
     from(coreMainOutput)
@@ -37,3 +35,4 @@ tasks.processResources {
         expand("version" to project.version.toString())
     }
 }
+

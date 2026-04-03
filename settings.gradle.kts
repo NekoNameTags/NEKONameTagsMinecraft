@@ -1,3 +1,5 @@
+import java.util.Locale
+
 pluginManagement {
     repositories {
         gradlePluginPortal()
@@ -14,11 +16,13 @@ include("ui-core")
 project(":ui-core").projectDir = file("ui/core")
 
 val targetLoader = providers.gradleProperty("nnt_target_loader")
+    .forUseAtConfigurationTime()
     .orNull
     ?.trim()
-    ?.lowercase()
+    ?.toLowerCase(Locale.ROOT)
     ?: "all"
 val targetMinecraftVersion = providers.gradleProperty("nnt_minecraft_version")
+    .forUseAtConfigurationTime()
     .orElse(providers.gradleProperty("minecraft_version"))
     .orNull
     ?.trim()

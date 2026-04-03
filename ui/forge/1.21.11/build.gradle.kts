@@ -15,9 +15,7 @@ java {
     withSourcesJar()
 }
 
-base {
-    archivesName.set("NekoNameTags-Forge-UI")
-}
+project.setProperty("archivesBaseName", "NekoNameTags-Forge-UI")
 
 minecraft {
     mappings("official", property("minecraft_version").toString())
@@ -30,3 +28,4 @@ tasks.processResources {
         expand("version" to project.version.toString())
     }
 }
+

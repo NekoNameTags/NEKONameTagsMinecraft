@@ -21,9 +21,7 @@ java {
     withSourcesJar()
 }
 
-base {
-    archivesName.set("NekoNameTags-NeoForge")
-}
+project.setProperty("archivesBaseName", "NekoNameTags-NeoForge")
 
 tasks.jar {
     from(coreMainOutput)
@@ -35,3 +33,4 @@ tasks.processResources {
         expand("version" to project.version.toString())
     }
 }
+

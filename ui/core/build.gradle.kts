@@ -13,6 +13,5 @@ java {
     withSourcesJar()
 }
 
-base {
-    archivesName.set("NekoNameTags-UI-Core")
-}
+project.setProperty("archivesBaseName", "NekoNameTags-UI-Core")
+

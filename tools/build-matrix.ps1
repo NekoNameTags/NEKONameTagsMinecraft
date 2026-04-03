@@ -162,6 +162,29 @@ try {
         return "$effectiveLoader/$McVersion"
     }
 
+    function Get-ModuleDirectoryForLoaderVersion {
+        param(
+            [Parameter(Mandatory = $true)][string]$LoaderName,
+            [Parameter(Mandatory = $true)][string]$McVersion
+        )
+
+        $effectiveLoader = if ($LoaderName -eq "bukkit") { "paper" } else { $LoaderName }
+        $loaderBaseDir = switch ($effectiveLoader) {
+            "paper" { "plugins/paper" }
+            "sponge" { "plugins/sponge" }
+            "fabric" { "mods/fabric" }
+            "forge" { "mods/forge" }
+            "neoforge" { "mods/neoforge" }
+            default { "" }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($loaderBaseDir) -or [string]::IsNullOrWhiteSpace($McVersion)) {
+            return ""
+        }
+
+        return Join-Path (Join-Path $repoRoot $loaderBaseDir) $McVersion
+    }
+
     $requiredFieldsByLoader = @{
         paper = @("paper_api_version")
         bukkit = @("paper_api_version")
@@ -190,10 +213,10 @@ try {
         $buildTargets = @()
         foreach ($l in $candidateLoaders) {
             $moduleName = Get-ModuleNameForLoaderVersion -LoaderName $l -McVersion $mc
+            $moduleDir = Get-ModuleDirectoryForLoaderVersion -LoaderName $l -McVersion $mc
             if (-not $moduleName -or [string]::IsNullOrWhiteSpace([string]$moduleName)) {
                 continue
             }
-            $moduleDir = Join-Path $repoRoot $moduleName
             if (-not (Test-Path $moduleDir)) {
                 Write-Host "Skipping loader '$l' for ${mc}: module missing ($moduleName)" -ForegroundColor Yellow
                 continue

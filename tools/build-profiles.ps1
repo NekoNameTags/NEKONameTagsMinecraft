@@ -69,7 +69,7 @@ function Resolve-JavaHome {
         }
     }
 
-    $unique = $candidates | Sort-Object -Descending -Unique
+    $unique = @($candidates | Sort-Object -Descending -Unique)
     if ($unique.Count -gt 0) {
         return $unique[0]
     }

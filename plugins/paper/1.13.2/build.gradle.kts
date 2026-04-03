@@ -18,9 +18,7 @@ java {
     withSourcesJar()
 }
 
-base {
-    archivesName.set("NekoNameTags-Paper")
-}
+project.setProperty("archivesBaseName", "NekoNameTags-Paper")
 
 tasks.processResources {
     filteringCharset = "UTF-8"
@@ -32,3 +30,4 @@ tasks.processResources {
 tasks.jar {
     from(coreMainOutput)
 }
+

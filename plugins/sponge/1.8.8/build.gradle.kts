@@ -18,9 +18,7 @@ java {
     withSourcesJar()
 }
 
-base {
-    archivesName.set("NekoNameTags-Sponge")
-}
+project.setProperty("archivesBaseName", "NekoNameTags-Sponge")
 
 tasks.processResources {
     inputs.property("version", project.version)
@@ -32,3 +30,4 @@ tasks.processResources {
 tasks.jar {
     from(coreMainOutput)
 }
+
