@@ -54,8 +54,8 @@ profiles:
       - forge-1.13..1.16
 
   modern_1_17_to_1_20:
-    java: 17
-    gradle_distribution_url: "https://services.gradle.org/distributions/gradle-8.10.2-bin.zip"
+    java: 21
+    gradle_distribution_url: "https://services.gradle.org/distributions/gradle-8.14.3-bin.zip"
     modules:
       - plugin-paper-1_20
       - mod-fabric-1_20

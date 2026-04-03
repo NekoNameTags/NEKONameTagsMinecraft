@@ -5,6 +5,7 @@ import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.entity.decoration.ArmorStandEntity;
 import net.minecraft.nbt.NbtCompound;
+import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.text.Style;
 import net.minecraft.text.Text;
@@ -141,7 +142,7 @@ final class NekoNameTagsFabricClient {
         MinecraftClient mc = MinecraftClient.getInstance();
         mc.execute(() -> {
             if (mc.player != null) {
-                mc.player.sendMessage(Text.literal(message), false);
+                mc.player.sendMessage(new LiteralText(message), false);
             }
         });
     }
@@ -188,7 +189,7 @@ final class NekoNameTagsFabricClient {
     }
 
     private static Text buildVanillaNameText(List<ParsedTagLine> lines, long nowMs) {
-        MutableText combined = Text.empty();
+        MutableText combined = new LiteralText("");
         boolean hasAny = false;
         for (int i = 0; i < lines.size(); i++) {
             Text line = buildStyledLineText(lines.get(i), nowMs);
@@ -196,7 +197,7 @@ final class NekoNameTagsFabricClient {
                 continue;
             }
             if (hasAny) {
-                combined.append(Text.literal("\n"));
+                combined.append(new LiteralText("\n"));
             }
             combined.append(line);
             hasAny = true;
@@ -223,14 +224,14 @@ final class NekoNameTagsFabricClient {
         }
 
         if (line.getEffectType() == TagEffectType.RAINBOW) {
-            MutableText rainbow = Text.empty();
+            MutableText rainbow = new LiteralText("");
             for (int i = 0; i < text.length(); i++) {
                 int rgb = TagEffects.rainbowRgb(nowMs, i * 80) & 0x00FFFFFF;
                 Style style = Style.EMPTY
                     .withColor(TextColor.fromRgb(rgb))
                     .withBold(line.isBold())
                     .withItalic(line.isItalic());
-                rainbow.append(Text.literal(String.valueOf(text.charAt(i))).setStyle(style));
+                rainbow.append(new LiteralText(String.valueOf(text.charAt(i))).setStyle(style));
             }
             return rainbow;
         }
@@ -240,7 +241,7 @@ final class NekoNameTagsFabricClient {
             .withColor(TextColor.fromRgb(rgb))
             .withBold(line.isBold())
             .withItalic(line.isItalic());
-        return Text.literal(text).setStyle(style);
+        return new LiteralText(text).setStyle(style);
     }
 
     static boolean isEnabled() {
@@ -267,7 +268,7 @@ final class NekoNameTagsFabricClient {
             ArmorStandEntity stand = new ArmorStandEntity(mc.world, player.getX(), player.getY(), player.getZ());
             configureHologramStand(stand);
             stand.setCustomNameVisible(true);
-            mc.world.addEntity(stand);
+            mc.world.addEntity(stand.getId(), stand);
             stands.add(stand);
         }
         while (stands.size() > lines.size()) {

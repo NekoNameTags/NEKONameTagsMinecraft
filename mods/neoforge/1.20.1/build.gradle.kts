@@ -1,13 +1,15 @@
 import org.gradle.api.tasks.SourceSetContainer
 
 plugins {
-    id("net.neoforged.moddev") version "2.0.78"
+    id("net.neoforged.moddev.legacyforge") version "2.0.141"
 }
 
 val coreMainOutput = project(":core").extensions.getByType<SourceSetContainer>()["main"].output
 
-neoForge {
-    version = property("neoforge_version").toString()
+legacyForge {
+    enable {
+        neoForgeVersion = property("neoforge_version").toString()
+    }
 }
 
 dependencies {
@@ -16,7 +18,7 @@ dependencies {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(17))
     }
     withSourcesJar()
 }
@@ -33,4 +35,3 @@ tasks.processResources {
         expand("version" to project.version.toString())
     }
 }
-

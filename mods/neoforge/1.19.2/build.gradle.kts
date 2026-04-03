@@ -1,7 +1,7 @@
 import org.gradle.api.tasks.SourceSetContainer
 
 plugins {
-    id("net.neoforged.moddev") version "2.0.78"
+    id("net.neoforged.moddev") version "2.0.141"
 }
 
 val coreMainOutput = project(":core").extensions.getByType<SourceSetContainer>()["main"].output
@@ -33,4 +33,5 @@ tasks.processResources {
         expand("version" to project.version.toString())
     }
 }
+
 

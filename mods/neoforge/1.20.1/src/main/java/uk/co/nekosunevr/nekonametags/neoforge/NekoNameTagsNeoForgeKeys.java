@@ -1,58 +1,14 @@
 package uk.co.nekosunevr.nekonametags.neoforge;
 
-import com.mojang.blaze3d.platform.InputConstants;
-import net.minecraft.client.KeyMapping;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
-import org.lwjgl.glfw.GLFW;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-
-@EventBusSubscriber(modid = "nekonametags", value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 final class NekoNameTagsNeoForgeKeys {
-    private static final AtomicBoolean TOGGLE_REQUESTED = new AtomicBoolean(false);
-    private static final AtomicBoolean RELOAD_REQUESTED = new AtomicBoolean(false);
-
-    private static KeyMapping toggleKey;
-    private static KeyMapping reloadKey;
-
     private NekoNameTagsNeoForgeKeys() {
     }
 
-    @SubscribeEvent
-    public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
-        toggleKey = new KeyMapping(
-            "key.nekonametags.toggle",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_K,
-            "key.categories.nekonametags"
-        );
-        reloadKey = new KeyMapping(
-            "key.nekonametags.reload",
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_J,
-            "key.categories.nekonametags"
-        );
-        event.register(toggleKey);
-        event.register(reloadKey);
-    }
-
     static boolean consumeToggleRequested() {
-        return consume(toggleKey, TOGGLE_REQUESTED);
+        return false;
     }
 
     static boolean consumeReloadRequested() {
-        return consume(reloadKey, RELOAD_REQUESTED);
-    }
-
-    private static boolean consume(KeyMapping key, AtomicBoolean flag) {
-        if (key != null) {
-            while (key.consumeClick()) {
-                flag.set(true);
-            }
-        }
-        return flag.getAndSet(false);
+        return false;
     }
 }

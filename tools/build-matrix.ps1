@@ -182,6 +182,8 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $matrixPath = Join-Path $repoRoot $MatrixFile
 $releaseOut = Join-Path $repoRoot "build/matrix-release"
 $profileMatrixPath = Join-Path $repoRoot "versions/version-matrix.yml"
+$gradleUserHome = Join-Path $repoRoot ".gradle-user-home"
+$tempRoot = Join-Path $repoRoot ".tmp"
 
 if (-not (Test-Path $matrixPath)) {
     Write-Host "Missing matrix file: $matrixPath" -ForegroundColor Red
@@ -190,10 +192,15 @@ if (-not (Test-Path $matrixPath)) {
 
 Push-Location $repoRoot
 try {
-    if (Test-Path $releaseOut) {
-        Remove-Item -Recurse -Force $releaseOut
+    if (Test-Path -LiteralPath $releaseOut) {
+        Remove-Item -LiteralPath $releaseOut -Recurse -Force -ErrorAction SilentlyContinue
     }
     New-Item -ItemType Directory -Force -Path $releaseOut | Out-Null
+    New-Item -ItemType Directory -Force -Path $gradleUserHome | Out-Null
+    New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+    $env:GRADLE_USER_HOME = $gradleUserHome
+    $env:TEMP = $tempRoot
+    $env:TMP = $tempRoot
 
     if ($isWindowsHost) {
         & (Join-Path $repoRoot "tools\build-profiles.ps1") -Profile $Profile -PrepareOnly
@@ -399,12 +406,18 @@ try {
                 if (Test-Path $neoTmp) {
                     Remove-Item -Recurse -Force $neoTmp -ErrorAction SilentlyContinue
                 }
-                $userHomePath = [System.Environment]::GetFolderPath("UserProfile")
-                if (-not $userHomePath -or [string]::IsNullOrWhiteSpace($userHomePath)) {
-                    $userHomePath = $env:HOME
+                $neoCacheRoot = $env:GRADLE_USER_HOME
+                if (-not $neoCacheRoot -or [string]::IsNullOrWhiteSpace($neoCacheRoot)) {
+                    $userHomePath = [System.Environment]::GetFolderPath("UserProfile")
+                    if (-not $userHomePath -or [string]::IsNullOrWhiteSpace($userHomePath)) {
+                        $userHomePath = $env:HOME
+                    }
+                    if ($userHomePath -and -not [string]::IsNullOrWhiteSpace($userHomePath)) {
+                        $neoCacheRoot = Join-Path $userHomePath ".gradle"
+                    }
                 }
-                if ($userHomePath -and -not [string]::IsNullOrWhiteSpace($userHomePath)) {
-                    $neoCache = Join-Path $userHomePath ".gradle/caches/neoformruntime"
+                if ($neoCacheRoot -and -not [string]::IsNullOrWhiteSpace($neoCacheRoot)) {
+                    $neoCache = Join-Path $neoCacheRoot "caches/neoformruntime"
                     if (Test-Path $neoCache) {
                         Remove-Item -Recurse -Force $neoCache -ErrorAction SilentlyContinue
                     }

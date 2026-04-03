@@ -1,6 +1,6 @@
 package uk.co.nekosunevr.nekonametags.neoforge;
 
-import net.neoforged.fml.common.Mod;
+import net.minecraftforge.fml.common.Mod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import uk.co.nekosunevr.nekonametags.core.NekoTagRepository;

@@ -2,15 +2,12 @@ package uk.co.nekosunevr.nekonametags.neoforge;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@EventBusSubscriber(modid = "nekonametags", value = Dist.CLIENT, bus = EventBusSubscriber.Bus.MOD)
 final class NekoNameTagsNeoForgeKeys {
     private static final AtomicBoolean TOGGLE_REQUESTED = new AtomicBoolean(false);
     private static final AtomicBoolean RELOAD_REQUESTED = new AtomicBoolean(false);
@@ -21,8 +18,11 @@ final class NekoNameTagsNeoForgeKeys {
     private NekoNameTagsNeoForgeKeys() {
     }
 
-    @SubscribeEvent
-    public static void onRegisterKeys(RegisterKeyMappingsEvent event) {
+    static void register(IEventBus modEventBus) {
+        modEventBus.addListener(NekoNameTagsNeoForgeKeys::onRegisterKeys);
+    }
+
+    private static void onRegisterKeys(RegisterKeyMappingsEvent event) {
         toggleKey = new KeyMapping(
             "key.nekonametags.toggle",
             InputConstants.Type.KEYSYM,
